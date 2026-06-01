@@ -1,6 +1,12 @@
 FROM python:3.10-slim-bookworm
 
-RUN apt-get update && apt-get install -y --no-install-recommends --no-install-suggests build-essential libpq-dev python3-dev ffmpeg && pip install --no-cache-dir --upgrade pip
+# apt-get upgrade pulls patched OS packages (libgnutls30, libkrb5*) that the base
+# image predates. pip upgrade of setuptools/wheel clears toolchain CVEs
+# (CVE-2026-24049 wheel, CVE-2026-23949 jaraco.context vendored in setuptools).
+RUN apt-get update && apt-get upgrade -y \
+    && apt-get install -y --no-install-recommends --no-install-suggests build-essential libpq-dev python3-dev ffmpeg \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install --no-cache-dir --upgrade pip setuptools wheel
 
 WORKDIR /app
 COPY ./requirements.txt /app
