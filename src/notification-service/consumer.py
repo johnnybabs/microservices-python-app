@@ -1,4 +1,8 @@
-import pika, sys, os, pathlib
+import os
+import pathlib
+import sys
+
+import pika
 from send import email
 
 def main():

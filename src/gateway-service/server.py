@@ -1,12 +1,16 @@
-import os, gridfs, pika, json
-from flask import Flask, request, send_file, jsonify
-from flask_pymongo import PyMongo
+import gridfs
+import json
+import os
+
+import pika
+from bson.objectid import ObjectId
+from flask import Flask, jsonify, request, send_file
 from flask_cors import CORS
+from flask_pymongo import PyMongo
+
 from auth import validate
 from auth_svc import access
 from storage import util
-from bson.objectid import ObjectId
-from werkzeug.middleware.dispatcher import DispatcherMiddleware
 
 server = Flask(__name__)
 CORS(server)

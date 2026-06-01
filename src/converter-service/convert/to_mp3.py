@@ -1,4 +1,8 @@
-import pika, json, tempfile, os
+import json
+import os
+import tempfile
+
+import pika
 from bson.objectid import ObjectId
 import moviepy.editor
 
@@ -37,6 +41,6 @@ def start(message, fs_videos, fs_mp3s, channel):
                 delivery_mode=pika.spec.PERSISTENT_DELIVERY_MODE
             ),
         )
-    except Exception as err:
+    except Exception:
         fs_mp3s.delete(fid)
         return "failed to publish message"

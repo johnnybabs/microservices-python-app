@@ -1,6 +1,9 @@
-import jwt, datetime, os
+import datetime
+import os
+
+import jwt
 import psycopg2
-from flask import Flask, request, jsonify
+from flask import Flask, jsonify, request
 
 server = Flask(__name__)
 
@@ -68,7 +71,7 @@ def validate():
     encoded_jwt = encoded_jwt.split(' ')[1]
     try:
         decoded_jwt = jwt.decode(encoded_jwt, os.environ['JWT_SECRET'], algorithms=["HS256"])
-    except:
+    except Exception:
         return 'Unauthorized', 401, {'WWW-Authenticate': 'Basic realm="Login required!"'}
     
     return decoded_jwt, 200
