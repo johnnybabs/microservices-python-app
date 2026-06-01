@@ -1,6 +1,7 @@
 import os, gridfs, pika, json
-from flask import Flask, request, send_file
+from flask import Flask, request, send_file, jsonify
 from flask_pymongo import PyMongo
+from flask_cors import CORS
 from auth import validate
 from auth_svc import access
 from storage import util
@@ -8,6 +9,7 @@ from bson.objectid import ObjectId
 from werkzeug.middleware.dispatcher import DispatcherMiddleware
 
 server = Flask(__name__)
+CORS(server)
 
 mongo_video = PyMongo(server, uri=os.environ.get('MONGODB_VIDEOS_URI'))
 
@@ -18,6 +20,27 @@ fs_mp3s = gridfs.GridFS(mongo_mp3.db)
 
 connection = pika.BlockingConnection(pika.ConnectionParameters(host="rabbitmq", heartbeat=0))
 channel = connection.channel()
+
+@server.route("/healthz", methods=["GET"])
+def healthz():
+    checks = {}
+    status_code = 200
+    try:
+        mongo_video.db.command("ping")
+        checks["mongodb"] = "ok"
+    except Exception as e:
+        checks["mongodb"] = str(e)
+        status_code = 503
+    try:
+        conn = pika.BlockingConnection(
+            pika.ConnectionParameters(host=os.environ.get("RABBITMQ_HOST", "rabbitmq"), heartbeat=0)
+        )
+        conn.close()
+        checks["rabbitmq"] = "ok"
+    except Exception as e:
+        checks["rabbitmq"] = str(e)
+        status_code = 503
+    return jsonify({"status": "ok" if status_code == 200 else "degraded", "checks": checks}), status_code
 
 @server.route("/login", methods=["POST"])
 def login():
@@ -33,7 +56,6 @@ def upload():
     access, err = validate.token(request)
 
     if err:
-        unauth_count.inc()
         return err
 
     access = json.loads(access)
@@ -57,7 +79,6 @@ def download():
     access, err = validate.token(request)
 
     if err:
-        unauth_count.inc()
         return err
 
     access = json.loads(access)

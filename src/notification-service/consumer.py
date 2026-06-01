@@ -1,4 +1,4 @@
-import pika, sys, os
+import pika, sys, os, pathlib
 from send import email
 
 def main():
@@ -12,6 +12,7 @@ def main():
             ch.basic_nack(delivery_tag=method.delivery_tag)
         else:
             ch.basic_ack(delivery_tag=method.delivery_tag)
+            pathlib.Path("/tmp/healthy").touch()
 
     channel.basic_consume(
         queue=os.environ.get("MP3_QUEUE"), on_message_callback=callback

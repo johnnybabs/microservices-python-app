@@ -1,6 +1,6 @@
 import jwt, datetime, os
 import psycopg2
-from flask import Flask, request
+from flask import Flask, request, jsonify
 
 server = Flask(__name__)
 
@@ -12,6 +12,15 @@ def get_db_connection():
                             port=5432)
     return conn
 
+
+@server.route('/healthz', methods=['GET'])
+def healthz():
+    try:
+        conn = get_db_connection()
+        conn.close()
+        return jsonify({"status": "ok"}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "detail": str(e)}), 503
 
 @server.route('/login', methods=['POST'])
 def login():

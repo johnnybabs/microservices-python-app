@@ -18,6 +18,12 @@ spec:
       labels:
         app: converter
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+      volumes:
+        - name: tmp-volume
+          emptyDir: {}
       containers:
         - name: converter
           image: nasi101/converter
@@ -26,5 +32,24 @@ spec:
                 name: converter-configmap
             - secretRef:
                 name: converter-secret
-
-    
+          volumeMounts:
+            - name: tmp-volume
+              mountPath: /tmp
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          livenessProbe:
+            exec:
+              command: ["test", "-f", "/tmp/healthy"]
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 3

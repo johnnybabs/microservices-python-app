@@ -18,6 +18,12 @@ spec:
       labels:
         app: notification
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+      volumes:
+        - name: tmp-volume
+          emptyDir: {}
       containers:
         - name: notification
           image: nasi101/notification
@@ -26,3 +32,24 @@ spec:
                 name: notification-configmap
             - secretRef:
                 name: notification-secret
+          volumeMounts:
+            - name: tmp-volume
+              mountPath: /tmp
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "100m"
+              memory: "128Mi"
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          livenessProbe:
+            exec:
+              command: ["test", "-f", "/tmp/healthy"]
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 3
