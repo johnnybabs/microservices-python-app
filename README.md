@@ -248,4 +248,4 @@ terraform destroy
     ├── environments/dev/ # Root module (main, variables, outputs, backend)
     └── modules/          # vpc, iam, eks, security-groups
 ```
-This is an edit to trigger CI, which builds the Docker images
+
