@@ -10,4 +10,8 @@ COPY . /app
 
 EXPOSE 5000
 
+# Run as a non-root uid (matches the Kubernetes securityContext runAsUser: 1000).
+# Port 5000 is >1024 so no privileged binding is required; /app is world-readable.
+USER 1000
+
 CMD ["python", "server.py"]
