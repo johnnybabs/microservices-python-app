@@ -34,6 +34,11 @@ def login():
 
     conn = get_db_connection()
     cur = conn.cursor()
+    # SECURITY: passwords are stored and compared in plaintext (see
+    # Helm_charts/Postgres/init.sql). Not fixed here because remediation requires
+    # hashing (e.g. bcrypt/argon2) plus migrating the seeded credentials — a
+    # coordinated schema + data change out of scope for this surgical pass.
+    # Recommended: store password hashes and compare with a constant-time check.
     query = f"SELECT email, password FROM {auth_table_name} WHERE email = %s"
     res = cur.execute(query, (auth.username,))
     
