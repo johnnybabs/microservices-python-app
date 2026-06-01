@@ -24,6 +24,7 @@ spec:
       containers:
         - name: auth
           image: nasi101/auth
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 5000
           envFrom:

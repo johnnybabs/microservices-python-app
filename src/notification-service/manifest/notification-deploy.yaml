@@ -27,6 +27,7 @@ spec:
       containers:
         - name: notification
           image: nasi101/notification
+          imagePullPolicy: IfNotPresent
           envFrom:
             - configMapRef:
                 name: notification-configmap

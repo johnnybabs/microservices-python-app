@@ -27,6 +27,7 @@ spec:
       containers:
         - name: converter
           image: nasi101/converter
+          imagePullPolicy: IfNotPresent
           envFrom:
             - configMapRef:
                 name: converter-configmap

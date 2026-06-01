@@ -127,7 +127,10 @@ curl -s -u guest:guest http://$NODE_IP:30004/api/queues | \
 
 ## Phase 5 — Create Kubernetes Secrets
 
-Secrets are gitignored. Create them manually:
+Secrets are gitignored (`**/secret.yaml`). A `secret.yaml.example` template sits
+beside each service's manifests — copy it to `secret.yaml`, fill in real values,
+and it will be picked up by `kubectl apply -f <service>/manifest/`. Or create
+them imperatively:
 
 ```bash
 # Auth service
@@ -135,13 +138,14 @@ kubectl create secret generic auth-secret \
   --from-literal=PSQL_PASSWORD=YOUR_POSTGRES_PASSWORD \
   --from-literal=JWT_SECRET=YOUR_JWT_SECRET
 
-# Gateway service
+# Gateway service — MongoDB URIs now live in the Secret, not the ConfigMap
 kubectl create secret generic gateway-secret \
-  --from-literal=JWT_SECRET=YOUR_JWT_SECRET
+  --from-literal=MONGODB_VIDEOS_URI="mongodb://USER:PASS@mongodb:27017/videos?authSource=admin" \
+  --from-literal=MONGODB_MP3S_URI="mongodb://USER:PASS@mongodb:27017/mp3s?authSource=admin"
 
-# Converter service
+# Converter service — MongoDB URI now lives in the Secret, not the ConfigMap
 kubectl create secret generic converter-secret \
-  --from-literal=JWT_SECRET=YOUR_JWT_SECRET
+  --from-literal=MONGODB_URI="mongodb://USER:PASS@mongodb:27017/mp3s?authSource=admin"
 
 # Notification service
 kubectl create secret generic notification-secret \
