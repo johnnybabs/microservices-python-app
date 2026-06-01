@@ -9,15 +9,22 @@ Configure these secrets in your GitHub repository under **Settings → Secrets a
 | `DOCKERHUB_USERNAME` | Docker Hub username | `johnbaabalola` |
 | `DOCKERHUB_TOKEN` | Docker Hub access token (not password) | `dckr_pat_...` |
 
-## CD Pipeline (cd.yml)
+## CD Pipeline (cd.yml) — OIDC, no static AWS keys
 
-| Secret Name | Description | Example |
-|-------------|-------------|---------|
-| `AWS_ACCESS_KEY_ID` | IAM user access key for EKS deploy | `AKIA...` |
-| `AWS_SECRET_ACCESS_KEY` | IAM user secret key | `wJal...` |
+CD authenticates to AWS via GitHub OIDC (short-lived credentials). There are no
+`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` secrets. The deploy role and OIDC
+provider are created by Terraform (`terraform/modules/github-oidc`); after
+`terraform apply`, read the role ARN from `terraform output github_actions_role_arn`.
+
+| Secret Name | Description | Source |
+|-------------|-------------|--------|
+| `AWS_DEPLOY_ROLE_ARN` | IAM role the workflow assumes via OIDC | `terraform output github_actions_role_arn` |
 | `AWS_REGION` | AWS region | `eu-west-2` |
 | `EKS_CLUSTER_NAME` | EKS cluster name | `vidcast-cluster` |
-| `DOCKERHUB_USERNAME` | Same as above — used to set image name | `johnbaabalola` |
+| `DOCKERHUB_USERNAME` | Used to set the deployment image name | your Docker Hub username |
+
+The workflow also needs `permissions: id-token: write` (already set in cd.yml) to
+request the OIDC token.
 
 ## Jenkins Pipeline (Jenkinsfile)
 

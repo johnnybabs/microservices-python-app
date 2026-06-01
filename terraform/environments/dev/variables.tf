@@ -62,3 +62,15 @@ variable "state_lock_table" {
   type        = string
   default     = "vidcast-terraform-locks"
 }
+
+variable "github_org" {
+  description = "GitHub org/user that owns the repo (for the OIDC deploy role trust policy)"
+  type        = string
+  default     = "johnnybabs"
+}
+
+variable "github_repo" {
+  description = "GitHub repository name (for the OIDC deploy role trust policy)"
+  type        = string
+  default     = "microservices-python-app"
+}

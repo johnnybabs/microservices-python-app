@@ -9,6 +9,12 @@ variable "kubernetes_version" {
   default     = "1.31"
 }
 
+variable "authentication_mode" {
+  description = "EKS cluster authentication mode. API_AND_CONFIG_MAP supports both access entries and the aws-auth ConfigMap."
+  type        = string
+  default     = "API_AND_CONFIG_MAP"
+}
+
 variable "cluster_role_arn" {
   description = "ARN of the IAM role for the EKS cluster"
   type        = string

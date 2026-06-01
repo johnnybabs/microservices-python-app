@@ -3,6 +3,13 @@ resource "aws_eks_cluster" "this" {
   version  = var.kubernetes_version
   role_arn = var.cluster_role_arn
 
+  # API_AND_CONFIG_MAP enables EKS access entries (used to grant the GitHub
+  # Actions deploy role kubectl permissions) while keeping aws-auth working.
+  # The principal that creates the cluster is auto-granted cluster admin.
+  access_config {
+    authentication_mode = var.authentication_mode
+  }
+
   vpc_config {
     subnet_ids              = var.subnet_ids
     endpoint_public_access  = true

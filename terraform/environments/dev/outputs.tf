@@ -32,3 +32,8 @@ output "oidc_provider_arn" {
   description = "OIDC provider ARN for IRSA setup"
   value       = module.eks.oidc_provider_arn
 }
+
+output "github_actions_role_arn" {
+  description = "Set this as the AWS_DEPLOY_ROLE_ARN secret in GitHub for OIDC-based CD"
+  value       = module.github_oidc.deploy_role_arn
+}
