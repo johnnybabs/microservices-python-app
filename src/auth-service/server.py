@@ -54,6 +54,36 @@ def login():
     else:
         return 'Could not verify', 401, {'WWW-Authenticate': 'Basic realm="Login required!"'}
 
+@server.route('/register', methods=['POST'])
+def register():
+    auth_table_name = os.getenv('AUTH_TABLE')
+    data = request.get_json(silent=True) or {}
+    email = data.get('email')
+    password = data.get('password')
+    if not email or not password:
+        return 'email and password are required', 400
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(f"SELECT 1 FROM {auth_table_name} WHERE email = %s", (email,))
+        if cur.fetchone() is not None:
+            return 'an account with that email already exists', 409
+        # SECURITY: password stored in plaintext to match the existing /login
+        # comparison and the seeded schema (Helm_charts/Postgres/init.sql).
+        # Hashing (bcrypt/argon2) is the right fix but must change /login too.
+        cur.execute(
+            f"INSERT INTO {auth_table_name} (email, password) VALUES (%s, %s)",
+            (email, password),
+        )
+        conn.commit()
+    finally:
+        cur.close()
+        conn.close()
+
+    # Auto-login: return a JWT so the new user is signed in immediately.
+    return CreateJWT(email, os.environ['JWT_SECRET'], True), 201
+
 def CreateJWT(username, secret, authz):
     return jwt.encode(
         {

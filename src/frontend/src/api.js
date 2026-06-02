@@ -9,6 +9,11 @@ export async function login(email, password) {
   return res.data
 }
 
+export async function register(email, password) {
+  const res = await axios.post(`${BASE}/register`, { email, password })
+  return res.data
+}
+
 export async function uploadVideo(file, token) {
   const form = new FormData()
   form.append('file', file)

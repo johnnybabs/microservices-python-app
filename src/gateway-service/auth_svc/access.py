@@ -18,3 +18,16 @@ def login(request):
         return response.text, None
     else:
         return None, (response.text, response.status_code)
+
+
+def register(request):
+    data = request.get_json(silent=True) or {}
+
+    response = requests.post(
+        f"http://{os.environ.get('AUTH_SVC_ADDRESS')}/register", json=data
+    )
+
+    if response.status_code in (200, 201):
+        return response.text, None
+    else:
+        return None, (response.text, response.status_code)

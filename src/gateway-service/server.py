@@ -65,6 +65,15 @@ def login():
     else:
         return err
 
+@server.route("/register", methods=["POST"])
+def register():
+    token, err = access.register(request)
+
+    if not err:
+        return token, 201
+    else:
+        return err
+
 @server.route("/upload", methods=["POST"])
 def upload():
     access, err = validate.token(request)
