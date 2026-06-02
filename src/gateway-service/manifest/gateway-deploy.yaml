@@ -21,9 +21,15 @@ spec:
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
+      volumes:
+        # Writable scratch dir. readOnlyRootFilesystem is true, but Werkzeug
+        # buffers multipart file uploads to a temp directory; without this the
+        # /upload handler fails with "No usable temporary directory found".
+        - name: tmp-volume
+          emptyDir: {}
       containers:
         - name: gateway
-          image: johnbaabalola/gateway-service:c91216a
+          image: johnbaabalola/gateway-service:16f49a0
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
@@ -34,6 +40,9 @@ spec:
                 name: gateway-secret
             - secretRef:
                 name: rabbitmq-secret
+          volumeMounts:
+            - name: tmp-volume
+              mountPath: /tmp
           resources:
             requests:
               cpu: "100m"
