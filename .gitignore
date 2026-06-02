@@ -9,6 +9,12 @@ crash.log
 
 # Kubernetes secrets
 **/secret.yaml
+# ...except Helm chart secret *templates*, which hold no literal credentials
+# (they reference values.yaml via {{ .Values.secret.* }}) and must be tracked
+# so a clean `helm install` can render the Secret resource.
+!Helm_charts/MongoDB/templates/secret.yaml
+!Helm_charts/RabbitMQ/templates/secret.yaml
+!Helm_charts/Postgres/templates/secret.yaml
 
 # Deployment-specific files
 DEPLOYMENT_CONFIG.md
