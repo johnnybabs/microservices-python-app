@@ -16,8 +16,12 @@ def main():
     fs_mp3s = gridfs.GridFS(db_mp3s)
 
     # rabbitmq connection
+    credentials = pika.PlainCredentials(
+        os.environ.get("RABBITMQ_DEFAULT_USER", "guest"),
+        os.environ.get("RABBITMQ_DEFAULT_PASS", "guest"),
+    )
     connection = pika.BlockingConnection(
-        pika.ConnectionParameters(host='rabbitmq',heartbeat=0)
+        pika.ConnectionParameters(host='rabbitmq', credentials=credentials, heartbeat=0)
     )
     channel = connection.channel()
 

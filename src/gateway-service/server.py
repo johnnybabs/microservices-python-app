@@ -22,7 +22,13 @@ mongo_mp3 = PyMongo(server, uri=os.environ.get('MONGODB_MP3S_URI'))
 fs_videos = gridfs.GridFS(mongo_video.db)
 fs_mp3s = gridfs.GridFS(mongo_mp3.db)
 
-connection = pika.BlockingConnection(pika.ConnectionParameters(host="rabbitmq", heartbeat=0))
+rabbitmq_credentials = pika.PlainCredentials(
+    os.environ.get("RABBITMQ_DEFAULT_USER", "guest"),
+    os.environ.get("RABBITMQ_DEFAULT_PASS", "guest"),
+)
+connection = pika.BlockingConnection(
+    pika.ConnectionParameters(host="rabbitmq", credentials=rabbitmq_credentials, heartbeat=0)
+)
 channel = connection.channel()
 
 @server.route("/healthz", methods=["GET"])
@@ -37,7 +43,11 @@ def healthz():
         status_code = 503
     try:
         conn = pika.BlockingConnection(
-            pika.ConnectionParameters(host=os.environ.get("RABBITMQ_HOST", "rabbitmq"), heartbeat=0)
+            pika.ConnectionParameters(
+                host=os.environ.get("RABBITMQ_HOST", "rabbitmq"),
+                credentials=rabbitmq_credentials,
+                heartbeat=0,
+            )
         )
         conn.close()
         checks["rabbitmq"] = "ok"
