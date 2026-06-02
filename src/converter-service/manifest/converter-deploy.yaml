@@ -26,13 +26,15 @@ spec:
           emptyDir: {}
       containers:
         - name: converter
-          image: nasi101/converter
+          image: johnbaabalola/converter-service:c91216a
           imagePullPolicy: IfNotPresent
           envFrom:
             - configMapRef:
                 name: converter-configmap
             - secretRef:
                 name: converter-secret
+            - secretRef:
+                name: rabbitmq-secret
           volumeMounts:
             - name: tmp-volume
               mountPath: /tmp

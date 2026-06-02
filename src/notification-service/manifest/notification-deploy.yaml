@@ -26,13 +26,15 @@ spec:
           emptyDir: {}
       containers:
         - name: notification
-          image: nasi101/notification
+          image: johnbaabalola/notification-service:c91216a
           imagePullPolicy: IfNotPresent
           envFrom:
             - configMapRef:
                 name: notification-configmap
             - secretRef:
                 name: notification-secret
+            - secretRef:
+                name: rabbitmq-secret
           volumeMounts:
             - name: tmp-volume
               mountPath: /tmp

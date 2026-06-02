@@ -23,7 +23,7 @@ spec:
         runAsUser: 1000
       containers:
         - name: gateway
-          image: nasi101/gateway
+          image: johnbaabalola/gateway-service:c91216a
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
@@ -32,6 +32,8 @@ spec:
                 name: gateway-configmap
             - secretRef:
                 name: gateway-secret
+            - secretRef:
+                name: rabbitmq-secret
           resources:
             requests:
               cpu: "100m"

@@ -23,7 +23,7 @@ spec:
         runAsUser: 1000
       containers:
         - name: auth
-          image: nasi101/auth
+          image: johnbaabalola/auth-service:c91216a
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 5000
