@@ -25,6 +25,12 @@ def main():
     )
     channel = connection.channel()
 
+    # Signal readiness as soon as we are connected and ready to consume. The
+    # liveness probe checks for this file; without an initial touch an idle
+    # consumer (no messages yet) would never create it and crash-loop on the
+    # probe. Each successfully processed message refreshes it below.
+    pathlib.Path("/tmp/healthy").touch()
+
     def callback(ch, method, properties, body):
         err = to_mp3.start(body, fs_videos, fs_mp3s, ch)
         if err:

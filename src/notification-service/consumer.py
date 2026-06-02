@@ -16,6 +16,14 @@ def main():
     )
     channel = connection.channel()
 
+    # Signal readiness as soon as we are connected and ready to consume. The
+    # liveness probe checks for this file; without an initial touch an idle
+    # consumer would never create it and crash-loop on the probe. This matters
+    # especially here: if email delivery fails (e.g. placeholder Gmail
+    # password), the per-message touch below never runs, so the startup touch
+    # is the only thing keeping the pod alive.
+    pathlib.Path("/tmp/healthy").touch()
+
     def callback(ch, method, properties, body):
         err = email.notification(body)
         if err:
