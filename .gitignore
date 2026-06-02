@@ -5,6 +5,8 @@ terraform.tfvars.json
 *.tfstate.*
 .terraform/
 .terraform.lock.hcl
+tfplan
+*.tfplan
 crash.log
 
 # Kubernetes secrets

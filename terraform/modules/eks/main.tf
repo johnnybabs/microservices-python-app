@@ -7,7 +7,8 @@ resource "aws_eks_cluster" "this" {
   # Actions deploy role kubectl permissions) while keeping aws-auth working.
   # The principal that creates the cluster is auto-granted cluster admin.
   access_config {
-    authentication_mode = var.authentication_mode
+    authentication_mode                         = var.authentication_mode
+    bootstrap_cluster_creator_admin_permissions = true
   }
 
   vpc_config {
