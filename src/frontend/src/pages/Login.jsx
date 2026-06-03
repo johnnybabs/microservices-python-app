@@ -21,6 +21,11 @@ export default function Login({ onLogin }) {
     e.preventDefault()
     setError('')
 
+    if (isSignup && password.length < 8) {
+      setError('Password must be at least 8 characters.')
+      return
+    }
+
     if (isSignup && password !== confirm) {
       setError('Passwords do not match.')
       return
@@ -72,6 +77,7 @@ export default function Login({ onLogin }) {
               className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
               required
             />
+            {isSignup && <p className="text-xs text-gray-500 mt-1">At least 8 characters.</p>}
           </div>
           {isSignup && (
             <div>
@@ -96,6 +102,18 @@ export default function Login({ onLogin }) {
               : (isSignup ? 'Sign Up' : 'Sign In')}
           </button>
         </form>
+
+        {isSignup && (
+          <div className="mt-6 bg-indigo-900/40 border border-indigo-800 rounded-lg p-4 text-xs text-gray-400">
+            <p className="font-semibold text-gray-300 mb-1">About email notifications</p>
+            <p>
+              When your audio conversion finishes, we'll email a download link to the
+              address you sign up with — you don't need to configure anything on your
+              end. Add our notification address to your contacts so it doesn't land in
+              your spam folder.
+            </p>
+          </div>
+        )}
 
         <p className="text-gray-400 text-sm mt-6 text-center">
           {isSignup ? 'Already have an account?' : "Don't have an account?"}{' '}

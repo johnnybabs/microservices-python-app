@@ -74,6 +74,8 @@ def register():
     password = data.get('password')
     if not email or not password:
         return 'email and password are required', 400
+    if len(password) < 8:
+        return 'password must be at least 8 characters', 400
 
     conn = get_db_connection()
     cur = conn.cursor()
