@@ -53,7 +53,15 @@ def login():
     email, password_hash, role = user_row[0], user_row[1], user_row[2]
 
     # Constant-time verification against the stored bcrypt hash (see init.sql).
-    if not bcrypt.checkpw(auth.password.encode('utf-8'), password_hash.encode('utf-8')):
+    # checkpw raises ValueError if the stored value is not a valid bcrypt hash
+    # (e.g. a legacy plaintext row from before the bcrypt migration). Treat that
+    # as an auth failure (401), never a 500 — /login must not leak a stack trace.
+    try:
+        password_ok = bcrypt.checkpw(auth.password.encode('utf-8'), password_hash.encode('utf-8'))
+    except (ValueError, TypeError) as err:
+        print(f"login: stored credential for {email} is not a valid bcrypt hash: {err}")
+        password_ok = False
+    if not password_ok:
         return 'Could not verify', 401, {'WWW-Authenticate': 'Basic realm="Login required!"'}
 
     return CreateJWT(email, os.environ['JWT_SECRET'], role)
