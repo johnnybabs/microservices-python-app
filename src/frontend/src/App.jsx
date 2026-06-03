@@ -3,6 +3,7 @@ import { Routes, Route, NavLink, Navigate } from 'react-router-dom'
 import Login from './pages/Login'
 import Upload from './pages/Upload'
 import Download from './pages/Download'
+import MyConversions from './pages/MyConversions'
 import Dashboard from './pages/Dashboard'
 import Architecture from './pages/Architecture'
 import { userFromToken } from './auth'
@@ -52,6 +53,7 @@ export default function App() {
                 </span>
               )}
             </NavLink>
+            <NavLink to="/my-files" className={({ isActive }) => `${nav} ${isActive ? active : ''}`}>My Conversions</NavLink>
             {isAdmin && <NavLink to="/dashboard" className={({ isActive }) => `${nav} ${isActive ? active : ''}`}>Dashboard</NavLink>}
             {isAdmin && <NavLink to="/architecture" className={({ isActive }) => `${nav} ${isActive ? active : ''}`}>Architecture</NavLink>}
             <button onClick={() => setToken(null)} className={`${nav} text-red-400`}>Logout</button>
@@ -64,6 +66,7 @@ export default function App() {
           <Route path="/" element={token ? <Navigate to="/upload" /> : <Login onLogin={handleLogin} />} />
           <Route path="/upload" element={token ? <Upload token={token} /> : <Navigate to="/" />} />
           <Route path="/download" element={token ? <Download token={token} /> : <Navigate to="/" />} />
+          <Route path="/my-files" element={token ? <MyConversions token={token} /> : <Navigate to="/" />} />
           {/* Admin-only routes. Guarded even against direct URL entry: a non-admin
               who types /dashboard is bounced to /upload, an unauth user to /. */}
           <Route
