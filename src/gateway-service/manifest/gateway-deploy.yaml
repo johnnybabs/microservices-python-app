@@ -40,6 +40,11 @@ spec:
                 name: gateway-secret
             - secretRef:
                 name: rabbitmq-secret
+          env:
+            # Unbuffered stdout so print() (e.g. the admin role-change audit log)
+            # reaches kubectl logs immediately, not on a block-buffer flush.
+            - name: PYTHONUNBUFFERED
+              value: "1"
           volumeMounts:
             - name: tmp-volume
               mountPath: /tmp

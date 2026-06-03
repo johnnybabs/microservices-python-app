@@ -39,6 +39,11 @@ spec:
                 name: converter-secret
             - secretRef:
                 name: rabbitmq-secret
+          env:
+            # Unbuffered stdout so print() diagnostics reach kubectl logs
+            # immediately, not on a block-buffer flush.
+            - name: PYTHONUNBUFFERED
+              value: "1"
           volumeMounts:
             - name: tmp-volume
               mountPath: /tmp

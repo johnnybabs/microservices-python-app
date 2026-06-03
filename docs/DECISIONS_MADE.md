@@ -127,3 +127,39 @@ The deciding reason: admin lockout is a self-inflicted outage with no in-app
 recovery path. Two cheap guards (plus disabling the self-row button in the UI)
 remove the most common ways to cause it, and the 409 last-admin check catches the
 case where demoting *someone else* would still empty the admin set.
+
+---
+
+## Addenda — learnings from the post-merge integration test
+
+### A. The bcrypt migration is a forward-only constraint
+
+Once live Postgres is migrated to bcrypt hashes, you **cannot roll the auth image
+back** to the pre-bcrypt version. The old image compares passwords with `==`
+against the stored value; after migration that value is a bcrypt hash, so every
+login fails. The clean rollback path (old plaintext image + old plaintext DB)
+exists **only before the migration runs** — migration closes it.
+
+We hit exactly this live: the merge auto-deployed the bcrypt auth image *before*
+the DB was migrated, so logins 500'd, and the only correct recovery was to roll
+**forward** (run the migration), not back. The operational rule that falls out of
+this: the bcrypt image and the schema/seed migration are a single atomic change —
+deploy them together, and treat "rollback" post-migration as "fix forward," not
+"revert the image." (A true revert would also require restoring a pre-bcrypt DB
+snapshot, which a no-PV dev Postgres doesn't have.)
+
+### B. The 403 self-demote and 409 last-admin guards are complementary, not redundant
+
+At first glance the 409 looks unreachable: in normal operation the only admin
+demoting the only admin is caught by the 403 self-demote check first, so 409 never
+fires. That's true — for *non-stale* tokens.
+
+The 409 exists for the **stale-token** case. An admin whose role was revoked in the
+DB but who still holds an unexpired admin JWT would pass the gateway's `admin`
+claim check, and could then demote the last *real* admin — emptying the admin set
+without ever demoting "themselves" (their token's identity is already a non-admin
+in the DB). The 403 guards **identity** ("you can't change your own role"); the 409
+guards a **system invariant** ("never zero admins"). Different questions, different
+failure modes — together they cover both "don't shoot yourself" and "don't empty
+the admin set, even with a token that out-lived its privileges." This is why the
+integration test could only trigger 409 by deliberately staling a token.
