@@ -3,11 +3,34 @@ import { Routes, Route, NavLink, Navigate } from 'react-router-dom'
 import Login from './pages/Login'
 import Upload from './pages/Upload'
 import Download from './pages/Download'
+import MyConversions from './pages/MyConversions'
 import Dashboard from './pages/Dashboard'
 import Architecture from './pages/Architecture'
+import AdminUsers from './pages/AdminUsers'
+import { userFromToken } from './auth'
+import { useUnseenCount } from './hooks/useUnseenCount'
 
 export default function App() {
   const [token, setToken] = useState(null)
+
+  // `since` marks the last time the user "saw" their downloads. New conversions
+  // completed after this timestamp drive the bubble badge. It resets on login
+  // and whenever the user visits the Download tab (marking everything as seen).
+  const [since, setSince] = useState(() => new Date().toISOString())
+  const markDownloadsSeen = () => setSince(new Date().toISOString())
+
+  const handleLogin = (t) => {
+    markDownloadsSeen()
+    setToken(t)
+  }
+
+  // Derive the user's role from the JWT. isAdmin gates the privileged tabs and
+  // routes below. This is UX-only — the real control is the backend role check;
+  // the frontend hiding just keeps the experience clean.
+  const { isAdmin } = userFromToken(token)
+
+  // Polled count of conversions ready since `since` — shown as the Download badge.
+  const unseen = useUnseenCount(token, since)
 
   const nav = 'px-4 py-2 rounded hover:bg-purple-800 transition-colors'
   const active = 'bg-purple-700'
@@ -19,9 +42,22 @@ export default function App() {
         {token && (
           <nav className="flex gap-2 text-sm">
             <NavLink to="/upload" className={({ isActive }) => `${nav} ${isActive ? active : ''}`}>Upload</NavLink>
-            <NavLink to="/download" className={({ isActive }) => `${nav} ${isActive ? active : ''}`}>Download</NavLink>
-            <NavLink to="/dashboard" className={({ isActive }) => `${nav} ${isActive ? active : ''}`}>Dashboard</NavLink>
-            <NavLink to="/architecture" className={({ isActive }) => `${nav} ${isActive ? active : ''}`}>Architecture</NavLink>
+            <NavLink
+              to="/download"
+              onClick={markDownloadsSeen}
+              className={({ isActive }) => `relative ${nav} ${isActive ? active : ''}`}
+            >
+              Download
+              {unseen > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full px-1.5 min-w-[18px] text-center leading-tight">
+                  {unseen}
+                </span>
+              )}
+            </NavLink>
+            <NavLink to="/my-files" className={({ isActive }) => `${nav} ${isActive ? active : ''}`}>My Conversions</NavLink>
+            {isAdmin && <NavLink to="/dashboard" className={({ isActive }) => `${nav} ${isActive ? active : ''}`}>Dashboard</NavLink>}
+            {isAdmin && <NavLink to="/architecture" className={({ isActive }) => `${nav} ${isActive ? active : ''}`}>Architecture</NavLink>}
+            {isAdmin && <NavLink to="/admin/users" className={({ isActive }) => `${nav} ${isActive ? active : ''}`}>Users</NavLink>}
             <button onClick={() => setToken(null)} className={`${nav} text-red-400`}>Logout</button>
           </nav>
         )}
@@ -29,11 +65,24 @@ export default function App() {
 
       <main className="flex-1 p-6">
         <Routes>
-          <Route path="/" element={token ? <Navigate to="/upload" /> : <Login onLogin={setToken} />} />
+          <Route path="/" element={token ? <Navigate to="/upload" /> : <Login onLogin={handleLogin} />} />
           <Route path="/upload" element={token ? <Upload token={token} /> : <Navigate to="/" />} />
           <Route path="/download" element={token ? <Download token={token} /> : <Navigate to="/" />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/architecture" element={<Architecture />} />
+          <Route path="/my-files" element={token ? <MyConversions token={token} /> : <Navigate to="/" />} />
+          {/* Admin-only routes. Guarded even against direct URL entry: a non-admin
+              who types /dashboard is bounced to /upload, an unauth user to /. */}
+          <Route
+            path="/dashboard"
+            element={!token ? <Navigate to="/" /> : isAdmin ? <Dashboard /> : <Navigate to="/upload" />}
+          />
+          <Route
+            path="/architecture"
+            element={!token ? <Navigate to="/" /> : isAdmin ? <Architecture /> : <Navigate to="/upload" />}
+          />
+          <Route
+            path="/admin/users"
+            element={!token ? <Navigate to="/" /> : isAdmin ? <AdminUsers token={token} /> : <Navigate to="/upload" />}
+          />
         </Routes>
       </main>
 
