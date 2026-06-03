@@ -6,6 +6,7 @@ import Download from './pages/Download'
 import MyConversions from './pages/MyConversions'
 import Dashboard from './pages/Dashboard'
 import Architecture from './pages/Architecture'
+import AdminUsers from './pages/AdminUsers'
 import { userFromToken } from './auth'
 import { useUnseenCount } from './hooks/useUnseenCount'
 
@@ -56,6 +57,7 @@ export default function App() {
             <NavLink to="/my-files" className={({ isActive }) => `${nav} ${isActive ? active : ''}`}>My Conversions</NavLink>
             {isAdmin && <NavLink to="/dashboard" className={({ isActive }) => `${nav} ${isActive ? active : ''}`}>Dashboard</NavLink>}
             {isAdmin && <NavLink to="/architecture" className={({ isActive }) => `${nav} ${isActive ? active : ''}`}>Architecture</NavLink>}
+            {isAdmin && <NavLink to="/admin/users" className={({ isActive }) => `${nav} ${isActive ? active : ''}`}>Users</NavLink>}
             <button onClick={() => setToken(null)} className={`${nav} text-red-400`}>Logout</button>
           </nav>
         )}
@@ -76,6 +78,10 @@ export default function App() {
           <Route
             path="/architecture"
             element={!token ? <Navigate to="/" /> : isAdmin ? <Architecture /> : <Navigate to="/upload" />}
+          />
+          <Route
+            path="/admin/users"
+            element={!token ? <Navigate to="/" /> : isAdmin ? <AdminUsers token={token} /> : <Navigate to="/upload" />}
           />
         </Routes>
       </main>

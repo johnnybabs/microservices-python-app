@@ -4,6 +4,7 @@ import json
 import os
 
 import pika
+import requests
 from bson.objectid import ObjectId
 from flask import Flask, jsonify, request, send_file
 from flask_cors import CORS
@@ -187,6 +188,94 @@ def unseen_count():
         "uploadDate": {"$gt": since_dt},
     })
     return jsonify({"count": count}), 200
+
+
+def _require_admin(request):
+    """Validate the JWT and require the admin role. Returns (claims, None) on
+    success or (None, (body, status)) to return directly. This is where admin
+    authorization is enforced — the auth-service /users endpoints trust it."""
+    raw, err = validate.token(request)
+    if err:
+        return None, err
+    claims = json.loads(raw)
+    if not claims or not claims.get("admin"):
+        return None, ("admin only", 403)
+    return claims, None
+
+
+def _conversion_counts():
+    """Map of owner_email -> number of converted mp3s, from a Mongo aggregation."""
+    pipeline = [{"$group": {"_id": "$metadata.owner_email", "count": {"$sum": 1}}}]
+    return {
+        doc["_id"]: doc["count"]
+        for doc in mongo_mp3.db["fs.files"].aggregate(pipeline)
+        if doc["_id"]
+    }
+
+
+@server.route("/admin/users", methods=["GET"])
+def admin_users():
+    claims, err = _require_admin(request)
+    if err:
+        return err
+
+    auth_addr = os.environ.get("AUTH_SVC_ADDRESS")
+    try:
+        resp = requests.get(f"http://{auth_addr}/users", timeout=5)
+    except Exception as e:
+        return f"auth service unreachable: {e}", 502
+    if resp.status_code != 200:
+        return resp.text, resp.status_code
+
+    users = resp.json()
+    counts = _conversion_counts()
+    for u in users:
+        u["conversions"] = counts.get(u["email"], 0)
+    return jsonify(users), 200
+
+
+@server.route("/admin/users/<email>", methods=["PATCH"])
+def admin_update_user(email):
+    claims, err = _require_admin(request)
+    if err:
+        return err
+
+    data = request.get_json(silent=True) or {}
+    role = data.get("role")
+    if role not in ("user", "admin"):
+        return "role must be 'user' or 'admin'", 400
+
+    caller = claims.get("username")
+    auth_addr = os.environ.get("AUTH_SVC_ADDRESS")
+
+    # Guardrail 1: an admin cannot change their own role (no accidental self-lockout).
+    if email == caller:
+        return "cannot change your own role", 403
+
+    # Guardrail 2: refuse a demotion that would leave zero admins (cluster lockout).
+    if role == "user":
+        try:
+            resp = requests.get(f"http://{auth_addr}/users", timeout=5)
+            resp.raise_for_status()
+            admin_emails = {u["email"] for u in resp.json() if u.get("role") == "admin"}
+        except Exception as e:
+            return f"auth service unreachable: {e}", 502
+        if admin_emails == {email}:
+            return "cannot demote the last remaining admin", 409
+
+    try:
+        resp = requests.patch(
+            f"http://{auth_addr}/users/{email}", json={"role": role}, timeout=5
+        )
+    except Exception as e:
+        return f"auth service unreachable: {e}", 502
+
+    # Audit trail (captured in gateway pod logs): who changed whom, to what role.
+    print(
+        f"AUDIT admin_role_change admin={caller} target={email} "
+        f"new_role={role} result={resp.status_code}"
+    )
+    return resp.text, resp.status_code
 
 
 if __name__ == "__main__":

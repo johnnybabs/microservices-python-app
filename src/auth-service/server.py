@@ -131,5 +131,61 @@ def validate():
     
     return decoded_jwt, 200
 
+# --- User administration (internal, ClusterIP) ---
+# These endpoints are NOT exposed via NodePort and carry NO role check of their
+# own — they trust in-cluster callers, exactly like /login and /validate. The
+# gateway is the component that enforces "admin only" before calling them. See
+# ADMIN_USERS_EXPLAINED.md for the trust gap this implies and the real fix.
+
+@server.route('/users', methods=['GET'])
+def list_users():
+    auth_table_name = os.getenv('AUTH_TABLE')
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            f"SELECT email, role, created_at FROM {auth_table_name} ORDER BY created_at"
+        )
+        rows = cur.fetchall()
+    finally:
+        cur.close()
+        conn.close()
+
+    users = [
+        {
+            "email": r[0],
+            "role": r[1],
+            "created_at": r[2].isoformat() if r[2] else None,
+        }
+        for r in rows
+    ]
+    return jsonify(users), 200
+
+@server.route('/users/<email>', methods=['PATCH'])
+def update_user_role(email):
+    auth_table_name = os.getenv('AUTH_TABLE')
+    data = request.get_json(silent=True) or {}
+    role = data.get('role')
+    if role not in ('user', 'admin'):
+        return "role must be 'user' or 'admin'", 400
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            f"UPDATE {auth_table_name} SET role = %s WHERE email = %s RETURNING email, role",
+            (role, email),
+        )
+        updated = cur.fetchone()
+        conn.commit()
+    finally:
+        cur.close()
+        conn.close()
+
+    if updated is None:
+        return 'no account with that email', 404
+
+    return jsonify({"email": updated[0], "role": updated[1]}), 200
+
 if __name__ == '__main__':
     server.run(host='0.0.0.0', port=5000)

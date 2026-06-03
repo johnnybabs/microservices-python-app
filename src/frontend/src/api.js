@@ -49,3 +49,21 @@ export async function myFiles(token) {
   })
   return res.data // { files: [...] }
 }
+
+// Admin only: all users with role, signup date, and conversion count.
+export async function adminUsers(token) {
+  const res = await axios.get(`${BASE}/admin/users`, {
+    headers: { Authorization: `Bearer ${token}` }
+  })
+  return res.data // [{ email, role, created_at, conversions }]
+}
+
+// Admin only: promote/demote a user between 'user' and 'admin'.
+export async function setUserRole(token, email, role) {
+  const res = await axios.patch(
+    `${BASE}/admin/users/${encodeURIComponent(email)}`,
+    { role },
+    { headers: { Authorization: `Bearer ${token}` } }
+  )
+  return res.data
+}
