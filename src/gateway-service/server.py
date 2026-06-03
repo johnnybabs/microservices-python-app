@@ -1,3 +1,4 @@
+import datetime
 import gridfs
 import json
 import os
@@ -128,6 +129,64 @@ def download():
     except Exception as err:
         print(err)
         return "internal server error", 500
+
+
+@server.route("/my-files", methods=["GET"])
+def my_files():
+    """List the converted mp3s owned by the current user, newest first.
+
+    Ownership is the metadata.owner_email tag written on the GridFS object at
+    conversion time (converter) — set from the uploader's JWT username. Files
+    uploaded before per-user ownership existed have no tag and simply don't
+    appear here (correct: they predate the concept; no backfill needed).
+    """
+    access, err = validate.token(request)
+    if err:
+        return err
+    access = json.loads(access)
+    if not access:
+        return "not authorized", 401
+
+    owner = access["username"]
+    files = []
+    for f in fs_mp3s.find({"metadata.owner_email": owner}).sort("uploadDate", -1):
+        files.append({
+            "fid": str(f._id),
+            "filename": f.filename,
+            "size": f.length,
+            "created": f.upload_date.isoformat() if f.upload_date else None,
+        })
+    return jsonify({"files": files}), 200
+
+
+@server.route("/notifications/unseen-count", methods=["GET"])
+def unseen_count():
+    """Count this user's completed mp3s created since `since` (ISO-8601).
+
+    The frontend polls this for the Download bubble badge and passes the
+    timestamp of the user's last visit to the Download page as `since`, so the
+    badge reflects only conversions completed since they last looked.
+    """
+    access, err = validate.token(request)
+    if err:
+        return err
+    access = json.loads(access)
+    if not access:
+        return "not authorized", 401
+
+    since = request.args.get("since", "1970-01-01T00:00:00")
+    try:
+        since_dt = datetime.datetime.fromisoformat(since)
+    except ValueError:
+        since_dt = datetime.datetime(1970, 1, 1)
+
+    # count_documents on the GridFS files collection — PyMongo 4 removed
+    # Cursor.count(), and counting server-side avoids streaming file docs.
+    count = mongo_mp3.db["fs.files"].count_documents({
+        "metadata.owner_email": access["username"],
+        "uploadDate": {"$gt": since_dt},
+    })
+    return jsonify({"count": count}), 200
 
 
 if __name__ == "__main__":

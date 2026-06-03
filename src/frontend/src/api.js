@@ -31,3 +31,21 @@ export async function downloadMp3(fid, token) {
   })
   return res.data
 }
+
+// Count of this user's conversions completed since `since` (ISO-8601 string).
+// Used by the Download bubble badge.
+export async function unseenCount(token, since) {
+  const res = await axios.get(`${BASE}/notifications/unseen-count`, {
+    params: { since },
+    headers: { Authorization: `Bearer ${token}` }
+  })
+  return res.data // { count }
+}
+
+// This user's converted files, newest first. Used by the My Conversions page.
+export async function myFiles(token) {
+  const res = await axios.get(`${BASE}/my-files`, {
+    headers: { Authorization: `Bearer ${token}` }
+  })
+  return res.data // { files: [...] }
+}
