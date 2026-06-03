@@ -83,19 +83,24 @@ def upload():
 
     access = json.loads(access)
 
-    if access["admin"]:
-        if len(request.files) > 1 or len(request.files) < 1:
-            return "exactly 1 file required", 400
-
-        for _, f in request.files.items():
-            err = util.upload(f, fs_videos, channel, access)
-
-            if err:
-                return err
-
-        return "success!", 200
-    else:
+    # AUTHORIZATION: uploading is a core action available to ANY authenticated
+    # user, not just admins. We previously gated on access["admin"], which only
+    # worked because every JWT claimed admin=true. With real RBAC, admin is
+    # reserved for privileged views (Dashboard/Architecture/Users); a valid token
+    # is all that's required to upload.
+    if not access:
         return "not authorized", 401
+
+    if len(request.files) > 1 or len(request.files) < 1:
+        return "exactly 1 file required", 400
+
+    for _, f in request.files.items():
+        err = util.upload(f, fs_videos, channel, access)
+
+        if err:
+            return err
+
+    return "success!", 200
 
 @server.route("/download", methods=["GET"])
 def download():
@@ -106,20 +111,23 @@ def download():
 
     access = json.loads(access)
 
-    if access["admin"]:
-        fid_string = request.args.get("fid")
+    # AUTHORIZATION: downloading is available to any authenticated user (same
+    # rationale as /upload). Per-user ownership scoping of downloads is layered on
+    # in Fix 2 via GridFS owner_email metadata; here we only require a valid token.
+    if not access:
+        return "not authorized", 401
 
-        if not fid_string:
-            return "fid is required", 400
+    fid_string = request.args.get("fid")
 
-        try:
-            out = fs_mp3s.get(ObjectId(fid_string))
-            return send_file(out, download_name=f"{fid_string}.mp3")
-        except Exception as err:
-            print(err)
-            return "internal server error", 500
+    if not fid_string:
+        return "fid is required", 400
 
-    return "not authorized", 401
+    try:
+        out = fs_mp3s.get(ObjectId(fid_string))
+        return send_file(out, download_name=f"{fid_string}.mp3")
+    except Exception as err:
+        print(err)
+        return "internal server error", 500
 
 
 if __name__ == "__main__":

@@ -5,9 +5,15 @@ import Upload from './pages/Upload'
 import Download from './pages/Download'
 import Dashboard from './pages/Dashboard'
 import Architecture from './pages/Architecture'
+import { userFromToken } from './auth'
 
 export default function App() {
   const [token, setToken] = useState(null)
+
+  // Derive the user's role from the JWT. isAdmin gates the privileged tabs and
+  // routes below. This is UX-only — the real control is the backend role check;
+  // the frontend hiding just keeps the experience clean.
+  const { isAdmin } = userFromToken(token)
 
   const nav = 'px-4 py-2 rounded hover:bg-purple-800 transition-colors'
   const active = 'bg-purple-700'
@@ -20,8 +26,8 @@ export default function App() {
           <nav className="flex gap-2 text-sm">
             <NavLink to="/upload" className={({ isActive }) => `${nav} ${isActive ? active : ''}`}>Upload</NavLink>
             <NavLink to="/download" className={({ isActive }) => `${nav} ${isActive ? active : ''}`}>Download</NavLink>
-            <NavLink to="/dashboard" className={({ isActive }) => `${nav} ${isActive ? active : ''}`}>Dashboard</NavLink>
-            <NavLink to="/architecture" className={({ isActive }) => `${nav} ${isActive ? active : ''}`}>Architecture</NavLink>
+            {isAdmin && <NavLink to="/dashboard" className={({ isActive }) => `${nav} ${isActive ? active : ''}`}>Dashboard</NavLink>}
+            {isAdmin && <NavLink to="/architecture" className={({ isActive }) => `${nav} ${isActive ? active : ''}`}>Architecture</NavLink>}
             <button onClick={() => setToken(null)} className={`${nav} text-red-400`}>Logout</button>
           </nav>
         )}
@@ -32,8 +38,16 @@ export default function App() {
           <Route path="/" element={token ? <Navigate to="/upload" /> : <Login onLogin={setToken} />} />
           <Route path="/upload" element={token ? <Upload token={token} /> : <Navigate to="/" />} />
           <Route path="/download" element={token ? <Download token={token} /> : <Navigate to="/" />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/architecture" element={<Architecture />} />
+          {/* Admin-only routes. Guarded even against direct URL entry: a non-admin
+              who types /dashboard is bounced to /upload, an unauth user to /. */}
+          <Route
+            path="/dashboard"
+            element={!token ? <Navigate to="/" /> : isAdmin ? <Dashboard /> : <Navigate to="/upload" />}
+          />
+          <Route
+            path="/architecture"
+            element={!token ? <Navigate to="/" /> : isAdmin ? <Architecture /> : <Navigate to="/upload" />}
+          />
         </Routes>
       </main>
 
