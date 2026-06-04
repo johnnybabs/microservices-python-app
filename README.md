@@ -61,6 +61,11 @@ Gateway (Flask :8080, NodePort :30002)
 
 ## Quick Start — Deploy to AWS
 
+> **New here?** For the full, narrated walkthrough from cloning the repo all the way to
+> teardown — including configuration, seeding, CI/CD secrets, and troubleshooting — follow
+> **[`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md)**. The steps below are the
+> condensed version.
+
 ### Prerequisites
 
 ```bash
@@ -168,7 +173,7 @@ push to main
 
 Jenkins pipeline (`Jenkinsfile`) mirrors the same stages for enterprise environments, adding a Docker Swarm staging deploy and a manual approval gate before production.
 
-See `GITHUB_SECRETS_REQUIRED.md` for the secrets to configure.
+See [`docs/GETTING_STARTED.md` → CI/CD secrets](docs/GETTING_STARTED.md#10-cicd-secrets) for the secrets to configure (none are stored in this repo).
 
 ---
 
@@ -233,11 +238,25 @@ terraform destroy
 ## Repository Structure
 
 ```
-├── .github/workflows/    # CI (lint+scan+build+push) and CD (EKS deploy)
-├── Helm_charts/          # MongoDB, PostgreSQL, RabbitMQ Helm charts
-├── Jenkinsfile           # Enterprise CI/CD pipeline with Swarm staging
+├── README.md             # You are here — overview + condensed quick start
+├── CLAUDE.md             # Operating instructions for AI assistants (build/deploy playbook)
+├── VIDCAST_UPGRADE_PLAN.md   # The plan that took the base project to production-grade
+├── Jenkinsfile           # Enterprise CI/CD pipeline with Swarm staging + approval gate
 ├── docker-compose.swarm.yml  # Docker Swarm staging environment
+├── install_prerequisites.sh  # Installs kubectl, Helm, Terraform, Python, psql, mongosh
+├── .github/workflows/    # CI (lint+scan+build+push) and CD (OIDC → EKS deploy)
+├── Helm_charts/          # MongoDB, PostgreSQL, RabbitMQ Helm charts
 ├── monitoring/           # kube-prometheus-stack values, dashboard, alerts
+├── assets/               # Sample video.mp4 for end-to-end testing
+├── docs/                 # All project documentation — see docs/README.md
+│   ├── README.md         #   Index: which doc to read for what
+│   ├── GETTING_STARTED.md#   Full clone → run → teardown walkthrough
+│   ├── PROJECT_GUIDE.md  #   Comprehensive guide (technical + plain English)
+│   ├── architecture.md   #   Service inventory, ports, data flow reference
+│   ├── deployment-guide.md   # Phase-by-phase operations reference
+│   ├── presentation-notes.md # Timed demo script
+│   ├── DECISIONS_MADE.md #   Architectural decision records
+│   └── MERGE_RUNBOOK_RBAC.md # RBAC/bcrypt merge runbook
 ├── src/
 │   ├── auth-service/
 │   ├── converter-service/
@@ -246,6 +265,20 @@ terraform destroy
 │   └── notification-service/
 └── terraform/
     ├── environments/dev/ # Root module (main, variables, outputs, backend)
-    └── modules/          # vpc, iam, eks, security-groups
+    └── modules/          # vpc, iam, eks, security-groups, github-oidc
 ```
-This is an edit to trigger CI, which builds the Docker images
+
+## Documentation
+
+Full documentation lives in **[`docs/`](docs/)** — start with
+**[`docs/README.md`](docs/README.md)**, which points you to the right document:
+
+- **Run it** → [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md)
+- **Understand it** → [`docs/PROJECT_GUIDE.md`](docs/PROJECT_GUIDE.md)
+- **Look something up** → [`docs/architecture.md`](docs/architecture.md)
+- **Present it** → [`docs/presentation-notes.md`](docs/presentation-notes.md)
+
+> **Security note:** no real credentials are committed to this repo. Account-specific
+> values appear as placeholders (`<AWS_ACCOUNT_ID>`, `YOUR_STATE_BUCKET`,
+> `admin@example.com`, `<BCRYPT_HASH_HERE>`). Supply your own via the gitignored
+> `terraform.tfvars` / `DEPLOYMENT_CONFIG.md` and your CI/CD secret store.

@@ -63,7 +63,7 @@ psql -h "$NODE_IP" -p 30003 -U pguser -d authdb -f Helm_charts/Postgres/init.sql
 ```bash
 psql -h "$NODE_IP" -p 30003 -U pguser -d authdb \
   -c "SELECT email, role, left(password,7) AS pw_prefix FROM auth_user;"
-# expect baabalola@ and johnbsignups@ as admin, pw_prefix = '$2b$12$'
+# expect your seeded admin email(s) as role=admin, pw_prefix = '$2b$12$'
 ```
 
 ## 4. Roll the auth image (CD normally does this on merge)
@@ -75,9 +75,9 @@ kubectl rollout status deployment/auth --timeout=120s
 ## 5. Smoke test — admin login carries role=admin
 
 ```bash
-JWT=$(curl -s -X POST "http://$NODE_IP:30002/login" -u "baabalola@gmail.com:$APP_PW")
+JWT=$(curl -s -X POST "http://$NODE_IP:30002/login" -u "admin@example.com:$APP_PW")
 echo "$JWT" | cut -d. -f2 | base64 -d 2>/dev/null; echo
-# expect: {"username":"baabalola@gmail.com",...,"admin":true,"role":"admin"}
+# expect: {"username":"admin@example.com",...,"admin":true,"role":"admin"}
 ```
 
 ## 6. Negative test — a new sign-up is role=user, never admin

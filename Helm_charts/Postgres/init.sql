@@ -8,10 +8,10 @@ CREATE TABLE IF NOT EXISTS auth_user (
 
 -- SECURITY: the password column stores a bcrypt hash (NOT plaintext). The auth
 -- service verifies logins with bcrypt.checkpw (constant-time) and hashes new
--- sign-ups with bcrypt.hashpw. The hashes below were generated locally from the
--- plaintext in DEPLOYMENT_CONFIG.md (gitignored) — only the hashes are committed,
--- never the plaintext. Regenerate with:
---   python3 -c "import bcrypt; print(bcrypt.hashpw(b'<plaintext>', bcrypt.gensalt(rounds=12)).decode())"
+-- sign-ups with bcrypt.hashpw. Never commit real hashes or plaintext to a public
+-- repo. Before applying, replace the placeholders below with your own admin email
+-- and a freshly generated hash:
+--   python3 -c "import bcrypt; print(bcrypt.hashpw(b'<your-password>', bcrypt.gensalt(rounds=12)).decode())"
 --
 -- RBAC: every row has a role. 'admin' unlocks Dashboard/Architecture/Users in the
 -- frontend and any admin-gated backend endpoint; 'user' is the default for sign-ups.
@@ -20,9 +20,5 @@ CREATE TABLE IF NOT EXISTS auth_user (
 -- re-applying init.sql resets the seeded admins' role + password hash without
 -- erroring on the UNIQUE(email) constraint.
 INSERT INTO auth_user (email, password, role)
-VALUES ('baabalola@gmail.com', '$2b$12$27w9I7SBkuawEIE9Is/nAennwQNfo16nwz.yQbuYBGUHIj4JUCs.6', 'admin')
-ON CONFLICT (email) DO UPDATE SET role = EXCLUDED.role, password = EXCLUDED.password;
-
-INSERT INTO auth_user (email, password, role)
-VALUES ('johnbsignups@gmail.com', '$2b$12$UAKcprFDrJ9bH84OSCjkXOXzJcARL.K1qIaiGl.casOtTtBeGjR76', 'admin')
+VALUES ('admin@example.com', '<BCRYPT_HASH_HERE>', 'admin')
 ON CONFLICT (email) DO UPDATE SET role = EXCLUDED.role, password = EXCLUDED.password;

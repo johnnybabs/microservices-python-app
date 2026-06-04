@@ -23,10 +23,11 @@ spec:
         runAsUser: 1001
       containers:
         - name: frontend
-          # Hosted in this account's ECR (the node IAM role can pull it); CI
+          # Hosted in your account's ECR (the node IAM role can pull it); CI
           # does not build the frontend, so it is not on Docker Hub like the
-          # backend services. SHA-pinned to the repo commit it was built from.
-          image: 501562869470.dkr.ecr.eu-west-2.amazonaws.com/vidcast-frontend:8582bf1
+          # backend services. Replace <AWS_ACCOUNT_ID> with your account ID and
+          # pin to the image tag you built (e.g. the short git SHA).
+          image: <AWS_ACCOUNT_ID>.dkr.ecr.eu-west-2.amazonaws.com/vidcast-frontend:latest
           ports:
             - containerPort: 8080
           resources:
