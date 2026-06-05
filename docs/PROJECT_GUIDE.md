@@ -1,14 +1,6 @@
 # VidCast — The Complete Project Guide
 
 **Last updated:** 2026-06-03
-**Reflects commit:** `c36b319` (branch `main`)
-**Audience:** group members, technical assessors, and non-technical guests — all at once.
-
-> **Status note (read first):** VidCast has been built, deployed to AWS, and tested
-> end-to-end. As of this writing the live cluster has been **deliberately torn down
-> to stop incurring cost** — every piece of infrastructure is defined as code, so it
-> comes back with a single `terraform apply` (about 20 minutes). This guide
-> describes the system as it was built and runs; nothing here is hypothetical.
 
 > **How to read this:** you do not need a technical background. Every piece of
 > jargon is explained in plain English *in the same breath* as it's introduced,
