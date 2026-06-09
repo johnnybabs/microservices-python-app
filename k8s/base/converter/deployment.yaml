@@ -25,6 +25,10 @@ spec:
       labels:
         app: converter
     spec:
+      # Disable legacy Docker-link service env vars. The `redis` Service otherwise
+      # injects REDIS_PORT=tcp://<ip>:6379, clobbering the plain "6379" idempotency.py
+      # expects → ValueError at import. This consumer needs no service-link vars.
+      enableServiceLinks: false
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
