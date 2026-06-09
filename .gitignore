@@ -32,6 +32,8 @@ customise.sh
 [0-9][0-9]_[0-9][0-9]_[0-9][0-9]_*.md
 FRONTEND_IMPROVEMENTS.md
 VIDCAST_PLAIN_ENGLISH_GUIDE.md
+CLAUDE.md
+PR_DESCRIPTION.md
 
 # Build artifacts
 *.mp3

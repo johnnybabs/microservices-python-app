@@ -35,11 +35,11 @@ labels:
 
 images:
   - name: johnbaabalola/auth-service
-    newTag: 16f49a0
+    newTag: 65f2f57
   - name: johnbaabalola/gateway-service
-    newTag: 16f49a0
+    newTag: 65f2f57
   - name: johnbaabalola/converter-service
-    newTag: 16f49a0
+    newTag: 65f2f57
   - name: johnbaabalola/notification-service
     newTag: 16f49a0
   # B2 gap-fix (disallow-latest-tag): pin the relay off :latest. 65f2f57 is the
