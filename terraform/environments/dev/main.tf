@@ -47,6 +47,19 @@ module "security_groups" {
   tags           = local.common_tags
 }
 
+# A8 supply-chain: hardened ECR repositories (immutable tags, scan-on-push,
+# lifecycle expiry; AES256 — no CMK by cost decision). The existing
+# vidcast-frontend repo predates this module and must be imported ONCE before the
+# first apply, or apply will fail with "repository already exists":
+#   terraform import 'module.ecr.aws_ecr_repository.this["vidcast-frontend"]' vidcast-frontend
+# See SUPPLY_CHAIN.md. Add backend repos here if/when they move off Docker Hub.
+module "ecr" {
+  source = "../../modules/ecr"
+
+  repository_names = ["vidcast-frontend"]
+  tags             = local.common_tags
+}
+
 module "github_oidc" {
   source = "../../modules/github-oidc"
 
@@ -55,6 +68,20 @@ module "github_oidc" {
   github_org   = var.github_org
   github_repo  = var.github_repo
   tags         = local.common_tags
+}
+
+# IRSA role for the External Secrets Operator (A9). Lets the in-cluster ESO
+# ServiceAccount (default:vidcast-eso) read /vidcast/* parameters from SSM
+# Parameter Store with no long-lived credentials. Cost: $0 (standard SSM
+# parameters + AWS-managed SSM KMS key are free).
+module "external_secrets" {
+  source = "../../modules/external-secrets"
+
+  cluster_name      = var.cluster_name
+  aws_region        = var.aws_region
+  oidc_provider_arn = module.eks.oidc_provider_arn
+  oidc_provider_url = module.eks.oidc_provider_url
+  tags              = local.common_tags
 }
 
 # Grant the GitHub Actions deploy role Kubernetes-level permissions on the

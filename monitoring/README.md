@@ -40,6 +40,27 @@ The `dashboards/vidcast-operations.json` file is loaded automatically via the Gr
 kubectl apply -f monitoring/alerts/vidcast-alerts.yaml
 ```
 
+## B4 — SLO scrape targets, burn-rate rules & error-budget dashboard
+
+App metrics are scraped via operator-native ServiceMonitor/PodMonitor resources
+(the old static `additionalScrapeConfigs` gateway job was retired):
+
+```bash
+kubectl apply -f monitoring/scrape/            # gateway + rabbitmq SM, converter + notification PM
+kubectl apply -f monitoring/alerts/vidcast-slo-rules.yaml   # recording rules + multi-burn-rate alerts
+```
+
+These depend on the **M-2 metrics foundation**: the gateway `/metrics` endpoint,
+the converter/notification metrics servers (`:9000/metrics`), and RabbitMQ's
+`rabbitmq_prometheus` plugin (`:15692`, enabled in `Helm_charts/RabbitMQ`). All
+need a fresh image build (gateway/converter/notification) and a RabbitMQ re-deploy.
+
+- **SLO definitions, budgets, runbooks:** `SLO.md` (repo root)
+- **Error-budget dashboard:** `dashboards/vidcast-slo.json` (load like the ops dashboard)
+
+Verify scrape targets after applying: Prometheus UI → Status → Targets should show
+`vidcast-gateway`, `vidcast-rabbitmq`, `vidcast-converter`, `vidcast-notification` **UP**.
+
 ## Uninstall
 
 ```bash

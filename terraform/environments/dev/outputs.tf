@@ -37,3 +37,13 @@ output "github_actions_role_arn" {
   description = "Set this as the AWS_DEPLOY_ROLE_ARN secret in GitHub for OIDC-based CD"
   value       = module.github_oidc.deploy_role_arn
 }
+
+output "external_secrets_irsa_role_arn" {
+  description = "Annotate the vidcast-eso ServiceAccount with eks.amazonaws.com/role-arn = this value (A9)"
+  value       = module.external_secrets.irsa_role_arn
+}
+
+output "ecr_repository_urls" {
+  description = "Hardened ECR repository URLs (A8)"
+  value       = module.ecr.repository_urls
+}

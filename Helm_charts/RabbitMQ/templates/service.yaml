@@ -2,6 +2,9 @@ apiVersion: v1
 kind: Service
 metadata:
   name: {{ .Values.service.name }}
+  labels:
+    # B4: the ServiceMonitor selects the Service by this label.
+    app: rabbitmq
 spec:
   type: NodePort
   selector:
@@ -16,3 +19,9 @@ spec:
       protocol: TCP
       port: 5672
       targetPort: 5672
+    # B4: prometheus metrics port (rabbitmq_prometheus plugin). No nodePort — it is
+    # in-cluster only, scraped by the B4 ServiceMonitor.
+    - name: prometheus
+      protocol: TCP
+      port: 15692
+      targetPort: 15692

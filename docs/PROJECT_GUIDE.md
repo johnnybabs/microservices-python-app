@@ -450,7 +450,7 @@ rebuild it identically in 20 minutes.*
   workflows in **this specific repo**"*:
 
   ```
-  token.actions.githubusercontent.com:sub  StringLike  "repo:johnnybabs/microservices-python-app:*"
+  token.actions.githubusercontent.com:sub  StringLike  "repo:johnnybabs/vidcast:*"
   ```
   No long-lived secret ever touches the robot. If GitHub were compromised the badge
   still only works for our one repo, and only for the moment a job runs.

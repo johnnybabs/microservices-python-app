@@ -20,4 +20,13 @@ EXPOSE 5000
 # Port 5000 is >1024 so no privileged binding is required; /app is world-readable.
 USER 1000
 
-CMD ["python", "server.py"]
+# Production WSGI server (A4). gunicorn imports the Flask app object `server` from
+# server.py (server:server) and serves it with 2 sync workers — conservative for a
+# 2-vCPU node already running 12+ pods. Binds 0.0.0.0:5000 to match the container
+# port / Service targetPort / liveness probe. Access logs to stdout (-) so they
+# land in `kubectl logs`. --no-control-socket disables gunicorn 26.x's control
+# socket (defaults to $HOME/.gunicorn/gunicorn.ctl), which we don't use and which
+# can't be created under our non-root UID + readOnlyRootFilesystem. The
+# `if __name__ == '__main__'` Werkzeug block in server.py is now dead code (kept
+# for local `python server.py` dev runs).
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "--no-control-socket", "--access-logfile", "-", "server:server"]

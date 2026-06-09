@@ -4,3 +4,30 @@ secret:
   username: mongouser
   password: MongoSecure2024
   users_list: mongouser
+
+# B2 gap-fix (require-requests-limits): right-sized for the demo workload. GridFS
+# chunk writes are memory-hungry during uploads, so memory headroom matters more
+# than CPU here. Review under production load.
+resources:
+  requests:
+    cpu: "100m"
+    memory: "256Mi"
+  limits:
+    cpu: "500m"
+    memory: "512Mi"
+
+# B2 gap-fix (require-labels): `app: database` already exists on the pod template;
+# these add the two remaining Kyverno-required labels.
+labels:
+  environment: prod
+  managedBy: helm
+
+# B2 gap-fix (require-seccomp). NOTE: the official mongo image's entrypoint runs
+# as root to chown /data/db and run initdb — it CANNOT start with runAsNonRoot.
+# That remains a DOCUMENTED require-non-root Audit exception (needs a Kyverno
+# exclude rule before Enforce). Safe subset applied: seccomp + no priv-escalation.
+podSecurityContext:
+  seccompProfile:
+    type: RuntimeDefault
+containerSecurityContext:
+  allowPrivilegeEscalation: false

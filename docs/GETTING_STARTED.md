@@ -45,8 +45,8 @@ aws sts get-caller-identity
 ## 1. Clone
 
 ```bash
-git clone https://github.com/johnbaabalola/microservices-python-app.git
-cd microservices-python-app
+git clone https://github.com/johnnybabs/vidcast.git
+cd vidcast
 ```
 
 ---
@@ -156,21 +156,26 @@ done
 ```
 
 The frontend is **not** built by CI; build it and push to your ECR (or Docker Hub),
-then set the image in `src/frontend/manifest/deployment.yaml` (it currently reads
-`<AWS_ACCOUNT_ID>.dkr.ecr.eu-west-2.amazonaws.com/vidcast-frontend:latest`).
-
-Make sure the four `manifest/*deploy*.yaml` files reference the image names you pushed.
+then set the image in the Kustomize overlay you deploy
+(`k8s/overlays/<env>/kustomization.yaml`, the `images:` entry named
+`vidcast-frontend`). Backend image tags live in the same `images:` block.
 
 ---
 
 ## 8. Deploy the microservices
 
+Manifests are managed with Kustomize (`k8s/base` + `k8s/overlays/{dev,prod}`).
+Secrets are applied separately (they are not in the Kustomize tree):
+
 ```bash
-kubectl apply -f src/auth-service/manifest/
-kubectl apply -f src/gateway-service/manifest/
-kubectl apply -f src/converter-service/manifest/
-kubectl apply -f src/notification-service/manifest/
-kubectl apply -f src/frontend/manifest/
+# Secrets first (gitignored; rabbitmq-secret comes from the RabbitMQ Helm chart):
+kubectl apply -f src/auth-service/manifest/secret.yaml
+kubectl apply -f src/gateway-service/manifest/secret.yaml
+kubectl apply -f src/converter-service/manifest/secret.yaml
+kubectl apply -f src/notification-service/manifest/secret.yaml
+
+# Then the overlay (use overlays/dev for the lighter single-replica dev env):
+kubectl apply -k k8s/overlays/prod
 kubectl get pods    # all should reach Running
 ```
 
@@ -258,11 +263,7 @@ Grafana → `http://$NODE_IP:30007` (admin / vidcast-demo). Alertmanager → `:3
 ## 12. Teardown (stop paying for it)
 
 ```bash
-kubectl delete -f src/auth-service/manifest/
-kubectl delete -f src/gateway-service/manifest/
-kubectl delete -f src/converter-service/manifest/
-kubectl delete -f src/notification-service/manifest/
-kubectl delete -f src/frontend/manifest/
+kubectl delete -k k8s/overlays/prod    # match the overlay you deployed
 
 helm uninstall mongodb postgres rabbitmq
 helm uninstall monitoring -n monitoring
