@@ -42,13 +42,13 @@ images:
     newTag: 16f49a0
   - name: johnbaabalola/notification-service
     newTag: 16f49a0
-  # B2 gap-fix (disallow-latest-tag): pin the relay off :latest. e4d2669 is a
-  # PLACEHOLDER = the short SHA a manual `docker build && push` of current main
-  # HEAD would produce. The REAL tag comes from CI once John adds outbox-relay to
-  # the build matrix (A1 CI diff) — at which point GitOps (B1) bumps newTag here
-  # like the other services.
+  # B2 gap-fix (disallow-latest-tag): pin the relay off :latest. 65f2f57 is the
+  # tag actually built and pushed to the registry (the prior placeholder e4d2669
+  # was never built → ImagePullBackOff when Argo synced it). The REAL tag will be
+  # bumped here by GitOps (B1) once John adds outbox-relay to the CI build matrix
+  # (A1 CI diff) like the other services.
   - name: johnbaabalola/outbox-relay
-    newTag: e4d2669
+    newTag: 65f2f57
   - name: vidcast-frontend
     newName: 501562869470.dkr.ecr.eu-west-2.amazonaws.com/vidcast-frontend
     newTag: d9e4282
