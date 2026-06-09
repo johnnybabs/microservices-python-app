@@ -95,8 +95,6 @@ terraform plan
 terraform apply
 ```
 
-> **Note:** Never use T-type instances on this account. The Terraform EKS module includes a validation block that rejects them. Use `m7i-flex.large` or any M/C/R-series type.
-
 ### 2 — Deploy infrastructure services
 
 ```bash
