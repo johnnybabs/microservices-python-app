@@ -41,6 +41,27 @@ resource "aws_eks_node_group" "this" {
   depends_on = [aws_eks_cluster.this]
 }
 
+# VPC CNI add-on with the in-cluster NetworkPolicy enforcement agent enabled (A6).
+# WITHOUT this, NetworkPolicy objects are accepted by the API server but NEVER
+# enforced — they become decorative YAML and the default-deny silently does
+# nothing. enableNetworkPolicy flips on the eBPF agent in the aws-node DaemonSet.
+# Set here so it is configured while the cluster is (re-)applied from scratch —
+# toggling it on a live cluster recycles aws-node (plan §2.4).
+resource "aws_eks_addon" "vpc_cni" {
+  cluster_name = aws_eks_cluster.this.name
+  addon_name   = "vpc-cni"
+
+  configuration_values = jsonencode({
+    enableNetworkPolicy = "true"
+  })
+
+  resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "OVERWRITE"
+
+  # The agent runs in the aws-node DaemonSet on the nodes.
+  depends_on = [aws_eks_node_group.this]
+}
+
 # OIDC provider — required for IRSA (IAM Roles for Service Accounts)
 data "tls_certificate" "eks_oidc" {
   url = aws_eks_cluster.this.identity[0].oidc[0].issuer
