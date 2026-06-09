@@ -2,20 +2,62 @@ import datetime
 import gridfs
 import json
 import os
+import time
 
 import pika
 import requests
 from bson.objectid import ObjectId
-from flask import Flask, jsonify, request, send_file
+from flask import Flask, g, jsonify, request, send_file
 from flask_cors import CORS
 from flask_pymongo import PyMongo
+from prometheus_client import (
+    CONTENT_TYPE_LATEST,
+    CollectorRegistry,
+    generate_latest,
+    multiprocess,
+)
 
 from auth import validate
 from auth_svc import access
 from storage import util
+from metrics import IN_FLIGHT, REQUEST_COUNT, REQUEST_LATENCY, UPLOADS
 
 server = Flask(__name__)
 CORS(server)
+
+# B4 SLO instrumentation. We record every request EXCEPT the scrape itself and the
+# liveness check, so /metrics polling and probes don't pollute the availability SLI.
+_UNMETERED = {"metrics", "healthz"}
+
+
+@server.before_request
+def _metrics_before():
+    if request.endpoint in _UNMETERED:
+        return
+    g._start = time.perf_counter()
+    IN_FLIGHT.inc()
+
+
+@server.after_request
+def _metrics_after(response):
+    if request.endpoint in _UNMETERED:
+        return response
+    # endpoint may be None for unmatched routes (404) — bucket those as "unknown".
+    endpoint = request.endpoint or "unknown"
+    REQUEST_COUNT.labels(request.method, endpoint, response.status_code).inc()
+    start = g.pop("_start", None)
+    if start is not None:
+        REQUEST_LATENCY.labels(request.method, endpoint).observe(time.perf_counter() - start)
+    IN_FLIGHT.dec()
+    return response
+
+
+@server.route("/metrics", methods=["GET"])
+def metrics():
+    # Aggregate the per-worker sample files into one exposition payload.
+    registry = CollectorRegistry()
+    multiprocess.MultiProcessCollector(registry)
+    return generate_latest(registry), 200, {"Content-Type": CONTENT_TYPE_LATEST}
 
 mongo_video = PyMongo(server, uri=os.environ.get('MONGODB_VIDEOS_URI'))
 
@@ -23,6 +65,15 @@ mongo_mp3 = PyMongo(server, uri=os.environ.get('MONGODB_MP3S_URI'))
 
 fs_videos = gridfs.GridFS(mongo_video.db)
 fs_mp3s = gridfs.GridFS(mongo_mp3.db)
+
+# A1 transactional outbox. The `outbox` collection lives in the same database as
+# the video GridFS (mongo_video.db), so the GridFS write and the outbox insert go
+# through the same MongoDB client. OUTBOX_ENABLED defaults to false → the gateway
+# publishes directly to RabbitMQ exactly as before; set it to "true" to route
+# uploads through the outbox (the outbox-relay then publishes them). See
+# storage/util.py and OUTBOX_EXPLAINED.md.
+outbox = mongo_video.db.outbox
+OUTBOX_ENABLED = os.environ.get("OUTBOX_ENABLED", "false").strip().lower() == "true"
 
 rabbitmq_credentials = pika.PlainCredentials(
     os.environ.get("RABBITMQ_DEFAULT_USER", "guest"),
@@ -97,11 +148,14 @@ def upload():
         return "exactly 1 file required", 400
 
     for _, f in request.files.items():
-        err = util.upload(f, fs_videos, channel, access)
+        err = util.upload(f, fs_videos, channel, access, outbox, OUTBOX_ENABLED)
 
         if err:
             return err
 
+    # SLO 3 numerator denominator source: count one accepted video per upload that
+    # reached the queue/outbox without error (we returned above on failure).
+    UPLOADS.inc()
     return "success!", 200
 
 @server.route("/download", methods=["GET"])
