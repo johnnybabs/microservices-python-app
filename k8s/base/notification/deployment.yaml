@@ -21,6 +21,11 @@ spec:
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
+        # B2 gap-fix: pod-level so it also covers any future init/sidecar
+        # containers. RuntimeDefault blocks ~44 dangerous syscalls (PSS Restricted)
+        # and satisfies the Kyverno require-seccomp-runtime-default policy.
+        seccompProfile:
+          type: RuntimeDefault
       volumes:
         - name: tmp-volume
           emptyDir: {}
@@ -28,6 +33,10 @@ spec:
         - name: notification
           image: johnbaabalola/notification-service:16f49a0
           imagePullPolicy: IfNotPresent
+          ports:
+            # B4: prometheus metrics (start_http_server) — scraped by a PodMonitor.
+            - name: metrics
+              containerPort: 9000
           envFrom:
             - configMapRef:
                 name: notification-configmap

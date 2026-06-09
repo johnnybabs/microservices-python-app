@@ -9,6 +9,9 @@ spec:
   # 4 converters @ 250m CPU request alongside the other services — they sat
   # Pending with "Insufficient cpu". 2 replicas is enough for demo throughput;
   # scale up by adding nodes (raise the node group desired_size) if needed.
+  # NOTE (A7): KEDA will drive this Deployment's replica count from the RabbitMQ
+  # `video` queue depth (scale-to-zero). The static count here is the floor used
+  # before KEDA is installed / when KEDA is disabled.
   replicas: 2
   selector:
     matchLabels:
@@ -25,6 +28,11 @@ spec:
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
+        # B2 gap-fix: pod-level so it also covers any future init/sidecar
+        # containers. RuntimeDefault blocks ~44 dangerous syscalls (PSS Restricted)
+        # and satisfies the Kyverno require-seccomp-runtime-default policy.
+        seccompProfile:
+          type: RuntimeDefault
       volumes:
         - name: tmp-volume
           emptyDir: {}
@@ -32,6 +40,10 @@ spec:
         - name: converter
           image: johnbaabalola/converter-service:16f49a0
           imagePullPolicy: IfNotPresent
+          ports:
+            # B4: prometheus metrics (start_http_server) — scraped by a PodMonitor.
+            - name: metrics
+              containerPort: 9000
           envFrom:
             - configMapRef:
                 name: converter-configmap
