@@ -426,15 +426,20 @@ curl -s -u guest:guest http://NODE_IP:30004/api/queues | python3 -m json.tool | 
 ```
 
 ### Phase 10: Deploy Microservices
+App manifests are managed with Kustomize (`k8s/base` + `k8s/overlays/{dev,prod}`).
+Secrets are applied separately (not in the Kustomize tree — see Phase 5 / A9 ESO).
 ```bash
-kubectl apply -f src/auth-service/manifest/
-kubectl rollout status deployment/auth
-kubectl apply -f src/gateway-service/manifest/
-kubectl rollout status deployment/gateway
-kubectl apply -f src/converter-service/manifest/
-kubectl rollout status deployment/converter
-kubectl apply -f src/notification-service/manifest/
-kubectl rollout status deployment/notification
+# Secrets first (gitignored; rabbitmq-secret comes from the RabbitMQ Helm chart):
+kubectl apply -f src/auth-service/manifest/secret.yaml
+kubectl apply -f src/gateway-service/manifest/secret.yaml
+kubectl apply -f src/converter-service/manifest/secret.yaml
+kubectl apply -f src/notification-service/manifest/secret.yaml
+
+# Then deploy all services via Kustomize (use overlays/dev for the lighter dev env):
+kubectl apply -k k8s/overlays/prod
+for d in auth gateway converter notification frontend; do
+  kubectl rollout status deployment/$d
+done
 kubectl get pods  # all should be Running
 ```
 
@@ -618,12 +623,8 @@ React + Vite + Tailwind CSS. Pages: Login, Upload, Download, Dashboard (Grafana 
 helm uninstall mongodb postgres rabbitmq
 helm uninstall monitoring -n monitoring
 
-# Kubernetes
-kubectl delete -f src/auth-service/manifest/
-kubectl delete -f src/gateway-service/manifest/
-kubectl delete -f src/converter-service/manifest/
-kubectl delete -f src/notification-service/manifest/
-kubectl delete -f src/frontend/manifest/
+# Kubernetes (Kustomize — match the overlay you deployed)
+kubectl delete -k k8s/overlays/prod
 
 # EKS
 aws eks delete-nodegroup --cluster-name vidcast-cluster \

@@ -127,10 +127,11 @@ curl -s -u guest:guest http://$NODE_IP:30004/api/queues | \
 
 ## Phase 5 — Create Kubernetes Secrets
 
-Secrets are gitignored (`**/secret.yaml`). A `secret.yaml.example` template sits
-beside each service's manifests — copy it to `secret.yaml`, fill in real values,
-and it will be picked up by `kubectl apply -f <service>/manifest/`. Or create
-them imperatively:
+Secrets are gitignored (`**/secret.yaml`) and are **not** part of the Kustomize
+tree — they are applied separately, before the overlay. A `secret.yaml.example`
+template sits in each service's `src/<service>/manifest/` dir — copy it to
+`secret.yaml`, fill in real values, and `kubectl apply -f` it. Or create them
+imperatively:
 
 ```bash
 # Auth service
@@ -157,21 +158,15 @@ kubectl create secret generic notification-secret \
 
 ## Phase 6 — Deploy Microservices
 
+All services deploy in one Kustomize apply (use `overlays/dev` for the lighter
+single-replica dev environment):
+
 ```bash
-kubectl apply -f src/auth-service/manifest/
-kubectl rollout status deployment/auth --timeout=120s
+kubectl apply -k k8s/overlays/prod
 
-kubectl apply -f src/gateway-service/manifest/
-kubectl rollout status deployment/gateway --timeout=120s
-
-kubectl apply -f src/converter-service/manifest/
-kubectl rollout status deployment/converter --timeout=120s
-
-kubectl apply -f src/notification-service/manifest/
-kubectl rollout status deployment/notification --timeout=120s
-
-kubectl apply -f src/frontend/manifest/
-kubectl rollout status deployment/frontend --timeout=120s
+for d in auth gateway converter notification frontend; do
+  kubectl rollout status deployment/$d --timeout=120s
+done
 
 kubectl get pods  # All should be Running
 ```
@@ -278,12 +273,8 @@ Note: The EKS control plane still costs ~$73/month even with 0 nodes. For extend
 ## Teardown (Full Destroy)
 
 ```bash
-# 1. Microservices
-kubectl delete -f src/frontend/manifest/
-kubectl delete -f src/auth-service/manifest/
-kubectl delete -f src/gateway-service/manifest/
-kubectl delete -f src/converter-service/manifest/
-kubectl delete -f src/notification-service/manifest/
+# 1. Microservices (Kustomize — match the overlay you deployed)
+kubectl delete -k k8s/overlays/prod
 
 # 2. Monitoring
 helm uninstall monitoring -n monitoring

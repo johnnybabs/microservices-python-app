@@ -129,12 +129,21 @@ curl -u guest:guest -X PUT http://$NODE_IP:30004/api/queues/%2F/mp3 \
 
 ### 5 — Deploy microservices
 
+Application manifests are managed with **Kustomize** (`k8s/base` + per-environment
+overlays in `k8s/overlays/{dev,prod}`). Secrets are *not* in the Kustomize tree —
+apply them first (from the gitignored `secret.yaml` files, or via External
+Secrets Operator), then apply the overlay.
+
 ```bash
-kubectl apply -f src/auth-service/manifest/
-kubectl apply -f src/gateway-service/manifest/
-kubectl apply -f src/converter-service/manifest/
-kubectl apply -f src/notification-service/manifest/
-kubectl apply -f src/frontend/manifest/
+# 1. Create the per-service Secrets (gitignored; rabbitmq-secret comes from the
+#    RabbitMQ Helm chart):
+kubectl apply -f src/auth-service/manifest/secret.yaml
+kubectl apply -f src/gateway-service/manifest/secret.yaml
+kubectl apply -f src/converter-service/manifest/secret.yaml
+kubectl apply -f src/notification-service/manifest/secret.yaml
+
+# 2. Deploy all services via Kustomize (use overlays/dev for the lighter dev env):
+kubectl apply -k k8s/overlays/prod
 kubectl get pods  # all should reach Running
 ```
 
@@ -191,7 +200,40 @@ kubectl apply -f monitoring/alerts/vidcast-alerts.yaml
 | Dashboard | URL | Credentials |
 |-----------|-----|-------------|
 | Grafana — VidCast Operations | `http://NODE_IP:30007` | admin / vidcast-demo |
+| Grafana — SLO / Error Budget (B4) | `http://NODE_IP:30007` (uid `vidcast-slo`) | admin / vidcast-demo |
+| Grafana — FinOps / Cost (B3) | `http://NODE_IP:30007` (uid `vidcast-finops`) | admin / vidcast-demo |
 | Alertmanager | `http://NODE_IP:30008` | — |
+
+---
+
+## What does VidCast cost?
+
+Cost visibility via **Kubecost** (OSS/OpenCost core, no license key) — see
+`k8s/kubecost/` and `FINOPS_EXPLAINED.md`.
+
+**Headline: cost per conversion.**
+
+```
+cost_per_conversion = cluster_$/hr ÷ conversions/hr
+                    = sum(node_total_hourly_cost) ÷ (rate(vidcast_conversions_total{status="success"}[1h]) × 3600)
+```
+
+It joins Kubecost's `node_total_hourly_cost` with the B4 SLO counter
+`vidcast_conversions_total`. _(Screenshot placeholder — fill from the live FinOps
+dashboard.)_
+
+**Accuracy caveat:** Kubecost **estimates** from instance list pricing —
+m7i-flex.large ≈ **$0.106/hr** (eu-west-2 on-demand; verify current pricing), so the
+node is ~$77/mo + ~$73/mo EKS control-plane ≈ the ~$150/mo figure. The **AWS Cost
+Explorer bill is ground truth**; Kubecost is for *attribution and trends* (who/what,
+relative change), not the absolute invoice.
+
+**The node-sizing story:** on a 2-vCPU node, Kubecost is the **largest single
+observability cost** — its default bundled Prometheus would eat ~1 of 2 CPUs. We
+strip it to one ~175m pod pointed at the existing Prometheus; even so it tips the
+prod footprint past the 90% idle budget gate, so it runs against the dev footprint
+or scales to zero between analyses. _The cost of measuring cost must be smaller than
+what it saves._
 
 ---
 
@@ -205,15 +247,50 @@ kubectl apply -f monitoring/alerts/vidcast-alerts.yaml
 
 ---
 
+## Reliability
+
+**Transactional outbox (no lost uploads).** When `OUTBOX_ENABLED=true`, the
+gateway records each upload event as a row in a MongoDB `outbox` collection
+(durable, in the same database as the video) instead of publishing straight to
+RabbitMQ. A dedicated single-replica `outbox-relay` deployment polls the
+collection and publishes pending rows to the `video` queue, marking each
+`published_at` on success. If RabbitMQ is down at upload time the event is **not
+lost** — it publishes once the broker recovers.
+
+The relay is a separate `replicas: 1` deployment (not an in-process thread)
+because the gateway runs multi-process under gunicorn — one publisher by
+construction avoids duplicate sends. Roll out with the flag off (relay idle),
+then flip to `true`. See `OUTBOX_EXPLAINED.md` for the full design and the
+single-node consistency caveat.
+
+**Retry / dead-letter topology.** Each pipeline (`video`, `mp3`) has a delayed
+retry queue and a terminal dead-letter queue. A failed message is retried
+`MAX_RETRIES` times (with a `RETRY_TTL_MS` delay between attempts) and then parked
+in `<queue>.dlq` via the `vidcast.dlx` exchange — replacing the old infinite
+NACK-requeue loop on poison messages. Declared from code at consumer startup.
+
+**Idempotent consumers.** With `IDEMPOTENCY_ENABLED=true`, the converter and
+notification consumers claim each job once (Redis `SET NX EX`, keyed on
+`video_fid`/`mp3_fid`) so an at-least-once redelivery isn't converted/emailed
+twice. Redis runs in-cluster; `claim_once` fails open if Redis is unavailable
+(degrades to a possible duplicate, never a stuck pipeline).
+
+| Flag | Where | Default | Effect |
+|------|-------|---------|--------|
+| `OUTBOX_ENABLED` | `gateway-configmap` | `false` | `false` = gateway publishes directly to RabbitMQ (legacy path, unchanged). `true` = uploads routed through the outbox + relay. |
+| `IDEMPOTENCY_ENABLED` | `converter`/`notification` configmaps | `false` | `false` = consumers behave as before. `true` = claim-once dedup via Redis. |
+| `MAX_RETRIES` / `RETRY_TTL_MS` | `converter`/`notification` configmaps | `3` / `30000` | Retry count and inter-attempt delay before a message is dead-lettered. |
+
+See `OUTBOX_EXPLAINED.md`, `DLQ_TOPOLOGY_EXPLAINED.md`, `IDEMPOTENCY_EXPLAINED.md`
+for the full designs.
+
+---
+
 ## Teardown
 
 ```bash
-# Microservices
-kubectl delete -f src/auth-service/manifest/
-kubectl delete -f src/gateway-service/manifest/
-kubectl delete -f src/converter-service/manifest/
-kubectl delete -f src/notification-service/manifest/
-kubectl delete -f src/frontend/manifest/
+# Microservices (Kustomize — match the overlay you deployed)
+kubectl delete -k k8s/overlays/prod
 
 # Helm
 helm uninstall mongodb postgres rabbitmq
