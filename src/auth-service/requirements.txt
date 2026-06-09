@@ -19,3 +19,12 @@ certifi>=2023.7.22
 # here — the only consumer is requests, which supports urllib3 2.x, and no app
 # code uses urllib3 directly.
 urllib3>=2.6.0
+# gunicorn: production WSGI server that replaces the single-threaded Werkzeug dev
+# server (A4, fixes TECHNICAL_ANALYSIS M-1). >=23.0.0 already clears CVE-2024-1135
+# (HTTP request smuggling, HIGH; fixed in 22.0.0) and CVE-2024-6827
+# (Transfer-Encoding smuggling; fixed in 23.0.0). Floor raised to 26.0.0 because
+# the Dockerfile CMD uses --no-control-socket: gunicorn 26.x added a control-socket
+# that defaults to $HOME/.gunicorn/gunicorn.ctl, which fails under our non-root UID
+# + readOnlyRootFilesystem securityContext; --no-control-socket (a 26.x flag) is the
+# clean disable. Pure-Python, no extra OS deps.
+gunicorn>=26.0.0
