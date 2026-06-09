@@ -45,8 +45,8 @@ aws sts get-caller-identity
 ## 1. Clone
 
 ```bash
-git clone https://github.com/johnbaabalola/microservices-python-app.git
-cd microservices-python-app
+git clone https://github.com/johnnybabs/vidcast.git
+cd vidcast
 ```
 
 ---

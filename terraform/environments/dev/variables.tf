@@ -72,5 +72,5 @@ variable "github_org" {
 variable "github_repo" {
   description = "GitHub repository name (for the OIDC deploy role trust policy)"
   type        = string
-  default     = "microservices-python-app"
+  default     = "vidcast"
 }

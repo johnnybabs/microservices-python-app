@@ -295,7 +295,7 @@ engine with more assembly; not worth it here.
 Driver: it's the strongest *and* the simplest here — no key to store (consistent
 with A9's "get secrets out of files" thesis), and the verifiable chain (Fulcio
 cert → Rekor log → Kyverno policy scoped to
-`repo:johnnybabs/microservices-python-app`) is exactly the SLSA narrative B5/
+`repo:johnnybabs/vidcast`) is exactly the SLSA narrative B5/
 `SUPPLY_CHAIN.md` is meant to demonstrate. **Prerequisite I'll flag loudly:**
 keyless verification at admission requires the cluster to reach Fulcio/Rekor
 (public sigstore) — fine on EKS with egress; would need the NetworkPolicy DNS/

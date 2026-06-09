@@ -13,7 +13,7 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                git branch: 'main', url: 'https://github.com/johnbaabalola/microservices-python-app.git'
+                git branch: 'main', url: 'https://github.com/johnnybabs/vidcast.git'
             }
         }
 

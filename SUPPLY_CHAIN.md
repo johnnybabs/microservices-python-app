@@ -45,7 +45,7 @@ The Kyverno `verify-images` policy (B5) must match the certificate identity belo
 workflow on `main`:
 
 ```
-certificate-identity:      https://github.com/johnnybabs/microservices-python-app/.github/workflows/ci.yml@refs/heads/main
+certificate-identity:      https://github.com/johnnybabs/vidcast/.github/workflows/ci.yml@refs/heads/main
 certificate-oidc-issuer:   https://token.actions.githubusercontent.com
 ```
 
@@ -64,13 +64,13 @@ Hub) and `501562869470.dkr.ecr.eu-west-2.amazonaws.com/vidcast-frontend` (ECR).
 ```bash
 # Any signed image (by tag or, better, by digest):
 cosign verify \
-  --certificate-identity   'https://github.com/johnnybabs/microservices-python-app/.github/workflows/ci.yml@refs/heads/main' \
+  --certificate-identity   'https://github.com/johnnybabs/vidcast/.github/workflows/ci.yml@refs/heads/main' \
   --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
   johnbaabalola/gateway-service:<SHORT_SHA>
 
 # Inspect the attached SBOM attestation:
 cosign verify-attestation --type cyclonedx \
-  --certificate-identity   'https://github.com/johnnybabs/microservices-python-app/.github/workflows/ci.yml@refs/heads/main' \
+  --certificate-identity   'https://github.com/johnnybabs/vidcast/.github/workflows/ci.yml@refs/heads/main' \
   --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
   johnbaabalola/gateway-service:<SHORT_SHA>
 ```

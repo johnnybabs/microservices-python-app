@@ -57,7 +57,7 @@ spec:
                 # signature is logged in Rekor. No private key to store. The subject
                 # MUST match A8's documented identity character-for-character.
                 - keyless:
-                    subject: "https://github.com/johnnybabs/microservices-python-app/.github/workflows/ci.yml@refs/heads/main"
+                    subject: "https://github.com/johnnybabs/vidcast/.github/workflows/ci.yml@refs/heads/main"
                     issuer: "https://token.actions.githubusercontent.com"
                     rekor:
                       url: "https://rekor.sigstore.dev"
