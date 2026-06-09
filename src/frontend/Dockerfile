@@ -4,6 +4,12 @@ WORKDIR /app
 COPY package.json ./
 RUN npm install
 COPY . .
+# VITE_* vars are baked into the bundle at build time. Pass the Grafana NodePort
+# URL so the Dashboard page's iframe/links point at the live Grafana, not the
+# fallback localhost:30007. Supplied via --build-arg (kept out of git so it can
+# track the current node IP); falls back to the in-code default if unset.
+ARG VITE_GRAFANA_URL
+ENV VITE_GRAFANA_URL=$VITE_GRAFANA_URL
 RUN npm run build
 
 # Stage 2 — Serve with nginx as non-root
