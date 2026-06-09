@@ -53,19 +53,19 @@ spec:
         # le=~"300(\.0)?" tolerates int vs float bucket-label rendering by the client.
         - record: slo:conversion_latency:burnrate5m
           expr: |
-            (1 - (sum(rate(vidcast_conversion_duration_seconds_bucket{le=~"300(\.0)?"}[5m]))
+            (1 - (sum(rate(vidcast_conversion_duration_seconds_bucket{le=~"300(\\.0)?"}[5m]))
                   / sum(rate(vidcast_conversion_duration_seconds_count[5m])))) / 0.05
         - record: slo:conversion_latency:burnrate30m
           expr: |
-            (1 - (sum(rate(vidcast_conversion_duration_seconds_bucket{le=~"300(\.0)?"}[30m]))
+            (1 - (sum(rate(vidcast_conversion_duration_seconds_bucket{le=~"300(\\.0)?"}[30m]))
                   / sum(rate(vidcast_conversion_duration_seconds_count[30m])))) / 0.05
         - record: slo:conversion_latency:burnrate1h
           expr: |
-            (1 - (sum(rate(vidcast_conversion_duration_seconds_bucket{le=~"300(\.0)?"}[1h]))
+            (1 - (sum(rate(vidcast_conversion_duration_seconds_bucket{le=~"300(\\.0)?"}[1h]))
                   / sum(rate(vidcast_conversion_duration_seconds_count[1h])))) / 0.05
         - record: slo:conversion_latency:burnrate6h
           expr: |
-            (1 - (sum(rate(vidcast_conversion_duration_seconds_bucket{le=~"300(\.0)?"}[6h]))
+            (1 - (sum(rate(vidcast_conversion_duration_seconds_bucket{le=~"300(\\.0)?"}[6h]))
                   / sum(rate(vidcast_conversion_duration_seconds_count[6h])))) / 0.05
 
     - name: vidcast.slo.e2e_success.recording

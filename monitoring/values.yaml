@@ -17,6 +17,17 @@ grafana:
   grafana.ini:
     server:
       root_url: "%(protocol)s://%(domain)s:30007"
+    # Allow the frontend Dashboard page to embed Grafana panels in an <iframe>
+    # (Grafana ships with allow_embedding=false + X-Frame-Options:deny, which the
+    # browser would otherwise block). Anonymous Viewer lets the iframe render the
+    # vidcast-ops dashboard without a login prompt — acceptable for this demo, where
+    # admin/vidcast-demo is already public.
+    security:
+      allow_embedding: true
+      cookie_samesite: none
+    auth.anonymous:
+      enabled: true
+      org_role: Viewer
 
 alertmanager:
   service:
