@@ -43,20 +43,17 @@ labels:
 # Docker Hub; the frontend resolves to this account's ECR (CI does not build it).
 images:
   - name: johnbaabalola/auth-service
-    newTag: 16f49a0
+    newTag: 65f2f57
   - name: johnbaabalola/gateway-service
-    newTag: 16f49a0
+    newTag: 65f2f57
   - name: johnbaabalola/converter-service
-    newTag: 16f49a0
+    newTag: 65f2f57
   - name: johnbaabalola/notification-service
-    newTag: 16f49a0
-  # B2 gap-fix (disallow-latest-tag): pin the relay off :latest. e4d2669 is a
-  # PLACEHOLDER = the short SHA a manual `docker build && push` of current main
-  # HEAD would produce. The REAL tag comes from CI once John adds outbox-relay to
-  # the build matrix (A1 CI diff) — at which point GitOps (B1) bumps newTag here
-  # like the other services.
+    newTag: 65f2f57
+  # outbox-relay is now built by CI (added to the build matrix) and pinned to the
+  # same CI SHA as the other backends — GitOps (B1) bumps newTag here on each build.
   - name: johnbaabalola/outbox-relay
-    newTag: e4d2669
+    newTag: 65f2f57
   - name: vidcast-frontend
     newName: 501562869470.dkr.ecr.eu-west-2.amazonaws.com/vidcast-frontend
     newTag: d9e4282
