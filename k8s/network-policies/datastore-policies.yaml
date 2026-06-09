@@ -95,6 +95,16 @@ spec:
       ports:
         - protocol: TCP
           port: 5672
+    # Prometheus (monitoring ns) scrapes the rabbitmq_prometheus plugin on :15692
+    # (/metrics/per-object). Without this, default-deny drops the scrape and the
+    # rabbitmq target goes DOWN (the two RabbitMQ alerts depend on it).
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - protocol: TCP
+          port: 15692
 ---
 # Redis (app: redis, A2) — from the two consumers that claim_once.
 apiVersion: networking.k8s.io/v1
