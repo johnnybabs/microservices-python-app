@@ -4,8 +4,38 @@ service:
   nodeport: 30003
 
 container:
-  image: postgres
+  # B2 gap-fix (disallow-latest-tag): pinned off the implicit :latest. 16.4-alpine
+  # chosen for a small, low-CVE base; it honours POSTGRES_HOST_AUTH_METHOD and the
+  # init.sql bootstrap unchanged. Runtime re-verify owed on next cluster apply.
+  image: postgres:16.4-alpine
   env:
     user: pguser
     password: PgSecure2024
     db: authdb
+
+# B2 gap-fix (require-requests-limits): right-sized for the demo workload — small
+# auth_user table, low query volume. Review under production load.
+resources:
+  requests:
+    cpu: "100m"
+    memory: "128Mi"
+  limits:
+    cpu: "250m"
+    memory: "256Mi"
+
+# B2 gap-fix (require-labels): `app: auth-app` already exists on the pod template;
+# these add the two remaining Kyverno-required labels.
+labels:
+  environment: prod
+  managedBy: helm
+
+# B2 gap-fix (require-seccomp). NOTE: the official postgres image's entrypoint
+# runs as root to initdb and chown $PGDATA, then drops to the `postgres` user via
+# gosu — it CANNOT start with runAsNonRoot: true. That remains a DOCUMENTED
+# require-non-root Audit exception (needs a Kyverno exclude rule before Enforce).
+# Safe subset applied: seccomp RuntimeDefault + no privilege escalation.
+podSecurityContext:
+  seccompProfile:
+    type: RuntimeDefault
+containerSecurityContext:
+  allowPrivilegeEscalation: false
