@@ -30,7 +30,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        service: [auth-service, gateway-service, converter-service, notification-service]
+        service: [auth-service, gateway-service, converter-service, notification-service, outbox-relay]
 
     steps:
       - uses: actions/checkout@v4
