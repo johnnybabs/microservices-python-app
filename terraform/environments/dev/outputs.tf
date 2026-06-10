@@ -48,6 +48,11 @@ output "ecr_repository_urls" {
   value       = module.ecr.repository_urls
 }
 
+output "lbc_irsa_role_arn" {
+  description = "Set as the eks.amazonaws.com/role-arn annotation on the aws-load-balancer-controller SA (k8s/ingress/alb-controller-values.yaml) (P1/I7)"
+  value       = module.lbc.lbc_irsa_role_arn
+}
+
 output "backup_bucket_name" {
   description = "S3 backup bucket the mongodump/pg_dump CronJobs write to (I4/P5)"
   value       = module.storage.backup_bucket_name
