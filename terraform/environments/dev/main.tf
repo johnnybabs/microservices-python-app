@@ -84,6 +84,20 @@ module "external_secrets" {
   tags              = local.common_tags
 }
 
+# Backup storage (I4 / P5). A private, versioned, encrypted S3 bucket the nightly
+# mongodump / pg_dump CronJobs write to, plus the IRSA role (default:vidcast-backup)
+# those jobs assume — scoped to PutObject on this bucket only. Cost: a few pennies
+# for compressed dumps under a 30-day lifecycle. Bucket name is deterministic:
+# vidcast-backups-<account_id>.
+module "storage" {
+  source = "../../modules/storage"
+
+  cluster_name      = var.cluster_name
+  oidc_provider_arn = module.eks.oidc_provider_arn
+  oidc_provider_url = module.eks.oidc_provider_url
+  tags              = local.common_tags
+}
+
 # Grant the GitHub Actions deploy role Kubernetes-level permissions on the
 # cluster. The IAM role policy (eks:DescribeCluster) only gets it a kubeconfig;
 # this access entry is what lets `kubectl set image` actually work. EKSEditPolicy

@@ -74,3 +74,67 @@ resource "aws_iam_openid_connect_provider" "eks" {
 
   tags = var.tags
 }
+
+# --- EBS CSI driver (A11 durability prerequisite) ---------------------------
+# This cluster shipped with NO CSI driver, so dynamically-provisioned EBS PVCs
+# stay Pending forever (the in-tree kubernetes.io/aws-ebs provisioner is removed
+# in k8s 1.31). Installing the managed aws-ebs-csi-driver addon is what lets the
+# Postgres PVC (and any future EBS-backed claim) actually bind. Kept in this
+# module alongside vpc_cni because, like vpc_cni, it is core cluster
+# infrastructure rather than an application concern.
+#
+# The driver's controller needs AWS permissions (create/attach/delete volumes),
+# granted via IRSA to its kube-system:ebs-csi-controller-sa ServiceAccount — no
+# node-role-wide EBS permissions, no static keys.
+locals {
+  ebs_oidc_host = replace(aws_iam_openid_connect_provider.eks.url, "https://", "")
+}
+
+data "aws_iam_policy_document" "ebs_csi_assume" {
+  statement {
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+    effect  = "Allow"
+
+    principals {
+      type        = "Federated"
+      identifiers = [aws_iam_openid_connect_provider.eks.arn]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "${local.ebs_oidc_host}:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+
+    # Only the driver's controller SA may assume the role.
+    condition {
+      test     = "StringEquals"
+      variable = "${local.ebs_oidc_host}:sub"
+      values   = ["system:serviceaccount:kube-system:ebs-csi-controller-sa"]
+    }
+  }
+}
+
+resource "aws_iam_role" "ebs_csi" {
+  name               = "${var.cluster_name}-ebs-csi-irsa"
+  assume_role_policy = data.aws_iam_policy_document.ebs_csi_assume.json
+  tags               = var.tags
+}
+
+# AWS-managed policy purpose-built for the driver (least-privilege EBS lifecycle).
+resource "aws_iam_role_policy_attachment" "ebs_csi" {
+  role       = aws_iam_role.ebs_csi.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
+}
+
+resource "aws_eks_addon" "ebs_csi" {
+  cluster_name             = aws_eks_cluster.this.name
+  addon_name               = "aws-ebs-csi-driver"
+  service_account_role_arn = aws_iam_role.ebs_csi.arn
+
+  resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "OVERWRITE"
+
+  # Needs nodes to schedule the controller, and the role before it annotates the SA.
+  depends_on = [aws_eks_node_group.this, aws_iam_role_policy_attachment.ebs_csi]
+}

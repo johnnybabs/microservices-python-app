@@ -19,6 +19,21 @@ container:
     authMethod: scram-sha-256
     db: authdb
 
+# A11 durability: back PGDATA with an EBS-backed PVC so registered users survive a
+# pod restart (without this, only the deploy.sh seed admin survives — everything in
+# the ephemeral pod filesystem is lost). Requires the aws-ebs-csi-driver addon
+# (terraform/modules/eks). Set persistence.enabled=false to fall back to the old
+# ephemeral behaviour (e.g. a local kind cluster with no EBS).
+persistence:
+  enabled: true
+  # Create the gp3 StorageClass from this chart. Set false if a suitable dynamic
+  # StorageClass already exists and you reference it via storageClassName below.
+  createStorageClass: true
+  storageClassName: vidcast-ebs-gp3
+  claimName: postgres-pvc
+  # Small: the auth_user table is tiny. gp3 can be expanded later (allowVolumeExpansion).
+  size: 2Gi
+
 # B2 gap-fix (require-requests-limits): right-sized for the demo workload — small
 # auth_user table, low query volume. Review under production load.
 resources:
