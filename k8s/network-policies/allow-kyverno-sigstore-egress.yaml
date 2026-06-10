@@ -54,3 +54,15 @@ spec:
       ports:
         - protocol: TCP
           port: 443
+    # EC2 Instance Metadata Service (IMDS) on :80 — verify-images (B5) pulls from the
+    # PRIVATE ECR repo (vidcast-frontend), and the AWS SDK fetches the node-role
+    # credentials from IMDS to authenticate. Without this the ECR call hangs past the
+    # webhook deadline → "context canceled" → failurePolicy:Fail rejects the admission
+    # of any ECR-image workload. (Public docker.io images need no auth and are
+    # unaffected.) Scoped to the link-local IMDS address only.
+    - to:
+        - ipBlock:
+            cidr: 169.254.169.254/32
+      ports:
+        - protocol: TCP
+          port: 80

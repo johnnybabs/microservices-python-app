@@ -14,7 +14,7 @@ reported, nothing is blocked.
 | `require-seccomp-runtime-default` | pods without seccomp RuntimeDefault | Audit |
 | `require-labels` | pods missing app / environment / app.kubernetes.io/managed-by | Audit |
 | `disallow-privileged` | privileged containers + SYS_ADMIN/NET_ADMIN/ALL caps | Audit |
-| `verify-images` | **ACTIVATED (B5)** — unsigned `docker.io/johnbaabalola/*` + ECR `vidcast-frontend` images (cosign keyless) | Audit |
+| `verify-images` | **ACTIVATED (B5)** — unsigned `docker.io/<YOUR_DOCKERHUB_USER>/*` + ECR `vidcast-frontend` images (cosign keyless) | Audit |
 
 System and platform namespaces (`kube-system`, `kyverno`, `argocd`, `keda`,
 `external-secrets`, `monitoring`, …) are **excluded** so the Audit report stays
@@ -66,7 +66,7 @@ or you'll block legitimate deploys.
 ## B5 — verify-images cosign test (live cluster)
 
 `verify-images` is now pointed at the real repos + the real keyless identity but
-stays **Audit**. Until John's CI signs images, the Audit report will show our
+stays **Audit**. Until the operator's CI signs images, the Audit report will show our
 images as **FAIL ("no signature")** — that is the expected "not yet signed" state.
 
 Prereq: the Sigstore egress carve-out so Kyverno can reach Fulcio/Rekor/TUF +
@@ -80,12 +80,12 @@ Once CI is signing, prove PASS vs FAIL on a live cluster:
 
 ```bash
 # PASS: a signed VidCast image verifies (after the cosign-sign CI job has run)
-kubectl run sig-pass --image=docker.io/johnbaabalola/gateway-service:<signed-sha> \
+kubectl run sig-pass --image=docker.io/<YOUR_DOCKERHUB_USER>/gateway-service:<signed-sha> \
   --restart=Never -n default
 kubectl describe clusterpolicyreport | grep -A3 verify-images   # result: pass
 
 # FAIL: an unsigned image is reported (Audit → still admitted, but flagged)
-kubectl run sig-fail --image=docker.io/johnbaabalola/gateway-service:<unsigned-sha> \
+kubectl run sig-fail --image=docker.io/<YOUR_DOCKERHUB_USER>/gateway-service:<unsigned-sha> \
   --restart=Never -n default
 kubectl describe clusterpolicyreport | grep -A3 verify-images   # result: fail
 

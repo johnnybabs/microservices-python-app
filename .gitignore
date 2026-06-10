@@ -20,12 +20,15 @@ crash.log
 
 # Deployment-specific files
 DEPLOYMENT_CONFIG.md
-DEPLOYMENT_HANDOVER.md
+# DEPLOYMENT_GUIDE.md is now a tracked runbook + newcomer guide (no secrets;
+# secrets live in DEPLOYMENT_CONFIG.md / Parameter Store).
 DEPLOYMENT_REPORT.md
 SESSION_SUMMARY.md
 DEPLOYMENT_PROBLEMS.md
 deployment-ids.txt
-customise.sh
+# customise.sh is now tracked: it auto-detects identity and reads new values from
+# env vars, so it contains no secrets or personal data (it just repoints the repo
+# to your Docker Hub / AWS / GitHub for a fork).
 
 # Local session artifacts / working notes (may contain account IDs, IPs, secrets).
 # Keep on disk, never commit.
