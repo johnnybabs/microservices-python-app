@@ -3,8 +3,11 @@
 > Closes narrative gaps **I4** (no automated backup) and **P5** (no DR runbook).
 > Companion to the durability work in `feature/improvement-sprint-1-durability-and-backup`.
 >
-> **Last restore test:** _NOT YET TESTED — fill in `YYYY-MM-DD` after performing the
-> drill in §5._ A backup you have never restored is a hope, not a backup.
+> **Last restore test:** **2026-06-10** — Postgres restore drill performed during the
+> Sprint 1 rollout: `pg_dump` of the live DB → `helm upgrade` onto the new EBS PVC
+> (fresh/empty volume) → restored the dump → **login E2E passed** (admin JWT issued
+> against the restored data). MongoDB backup verified producing valid archives in S3
+> (videos 38 MB, mp3s 7 MB); a full **mongorestore** drill is still outstanding (§5).
 
 ---
 
@@ -25,14 +28,21 @@ runbook covers the **stateful tier**, which Git cannot rebuild.
 
 | Datastore | Tool | Schedule (UTC) | Destination | Format |
 |---|---|---|---|---|
-| MongoDB (videos, mp3s, outbox, metadata) | `mongodump --gzip --archive` | nightly **02:00** | `s3://vidcast-backups-501562869470/mongo/` | gzip archive |
+| MongoDB `videos` + `mp3s` DBs (GridFS files + outbox) | `mongodump --uri` per DB, gzip archive | nightly **02:00** | `s3://vidcast-backups-501562869470/mongo/` | two gzip archives per run |
 | PostgreSQL (`authdb`) | `pg_dump \| gzip` | nightly **02:15** | `s3://vidcast-backups-501562869470/postgres/` | gzipped SQL |
+
+> **MongoDB auth note (important for restore):** the backup authenticates with the
+> **app's own credentials** from `gateway-secret` (`MONGODB_VIDEOS_URI` /
+> `MONGODB_MP3S_URI`, user `mongouser`, `authSource=admin`) — **not** the
+> `mongodb-secret` root user, whose password is out of sync with the running mongod
+> and fails SCRAM-SHA-256. Each run produces two archives (`videos-<ts>` and
+> `mp3s-<ts>`) because a URI pins to a single database.
 
 - **Bucket:** `vidcast-backups-501562869470` — private, versioned, AES256-encrypted,
   created by `terraform/modules/storage`.
 - **Retention:** 30 days (object + noncurrent-version lifecycle expiry).
-- **Object keys** are timestamped: `mongo-YYYYMMDDTHHMMSSZ.archive.gz`,
-  `postgres-YYYYMMDDTHHMMSSZ.sql.gz`.
+- **Object keys** are timestamped: `mongo/videos-YYYYMMDDTHHMMSSZ.archive.gz`,
+  `mongo/mp3s-YYYYMMDDTHHMMSSZ.archive.gz`, `postgres/postgres-YYYYMMDDTHHMMSSZ.sql.gz`.
 - **Auth:** the CronJobs run as the `vidcast-backup` ServiceAccount (IRSA role
   `vidcast-cluster-backup-irsa`), which may only `s3:PutObject`/`ListBucket` on
   this one bucket — no other AWS access.
@@ -76,19 +86,29 @@ aws s3 ls s3://vidcast-backups-501562869470/postgres/ --recursive | sort | tail
 
 ### 4.2 Restore MongoDB
 
+> Each run produced TWO archives (`videos-<ts>` and `mp3s-<ts>`). Restore both.
+> Authenticate with the **app** credentials (the same ones the backup used), not
+> the mongodb-secret root user — pull the URI from `gateway-secret`.
+
 ```bash
-# 1. Pull the dump locally.
-aws s3 cp s3://vidcast-backups-501562869470/mongo/<OBJECT> /tmp/mongo.archive.gz
+# 0. Get the app's mongo URIs (these carry the working mongouser credentials).
+VIDEOS_URI=$(kubectl get secret gateway-secret -o jsonpath='{.data.MONGODB_VIDEOS_URI}' | base64 -d)
+MP3S_URI=$(kubectl get secret gateway-secret -o jsonpath='{.data.MONGODB_MP3S_URI}' | base64 -d)
 
-# 2. Copy it into the running mongod pod.
-kubectl cp /tmp/mongo.archive.gz mongodb-0:/tmp/mongo.archive.gz
+# 1. Pull both archives for the chosen timestamp.
+aws s3 cp s3://vidcast-backups-501562869470/mongo/videos-<TS>.archive.gz /tmp/videos.gz
+aws s3 cp s3://vidcast-backups-501562869470/mongo/mp3s-<TS>.archive.gz   /tmp/mp3s.gz
 
-# 3. Restore. --drop replaces existing collections with the backup's contents.
-#    Omit --drop to merge instead of replace.
-kubectl exec -it mongodb-0 -- mongorestore \
-  --username="$MONGO_ROOT_USERNAME" --password="$MONGO_ROOT_PASSWORD" \
-  --authenticationDatabase=admin \
-  --gzip --archive=/tmp/mongo.archive.gz --drop
+# 2. Copy into the running mongod pod.
+kubectl cp /tmp/videos.gz mongodb-0:/tmp/videos.gz
+kubectl cp /tmp/mp3s.gz   mongodb-0:/tmp/mp3s.gz
+
+# 3. Restore each. --drop replaces existing collections with the backup's contents;
+#    omit --drop to merge. --nsInclude scopes the restore to that database.
+kubectl exec -it mongodb-0 -- mongorestore --uri="$VIDEOS_URI" \
+  --gzip --archive=/tmp/videos.gz --drop --nsInclude='videos.*'
+kubectl exec -it mongodb-0 -- mongorestore --uri="$MP3S_URI" \
+  --gzip --archive=/tmp/mp3s.gz --drop --nsInclude='mp3s.*'
 ```
 
 ### 4.3 Restore PostgreSQL
