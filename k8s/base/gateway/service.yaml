@@ -8,11 +8,13 @@ metadata:
 spec:
   selector:
     app: gateway
-  type: NodePort
+  # I2/P1: ClusterIP only. The gateway is no longer publicly exposed on a NodePort;
+  # browsers and API clients reach it through the frontend (nginx proxies /api/ →
+  # gateway), which the ALB Ingress fronts. Smaller attack surface.
+  type: ClusterIP
   ports:
     # named so the B4 ServiceMonitor can reference it by name for /metrics scraping.
     - name: http
       port: 8080
       targetPort: 8080
-      nodePort: 30002
       protocol: TCP
