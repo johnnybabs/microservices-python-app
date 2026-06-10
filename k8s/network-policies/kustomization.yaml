@@ -16,4 +16,6 @@ resources:
   - allow-monitoring.yaml
   - app-policies.yaml
   - datastore-policies.yaml
+  # I4 backup CronJobs: egress to Mongo/Postgres/AWS + datastore ingress from backup.
+  - allow-backup-egress.yaml
   - default-deny.yaml
