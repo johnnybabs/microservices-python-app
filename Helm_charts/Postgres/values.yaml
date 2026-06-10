@@ -10,7 +10,9 @@ container:
   image: postgres:16.4-alpine
   env:
     user: pguser
-    password: PgSecure2024
+    # Injected by deploy.sh: --set container.env.password=$POSTGRES_PASSWORD.
+    # Never commit a real password here (CHANGEME is a no-real-secret placeholder).
+    password: CHANGEME
     db: authdb
 
 # B2 gap-fix (require-requests-limits): right-sized for the demo workload — small

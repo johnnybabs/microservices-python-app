@@ -4,7 +4,9 @@ service:
 
 secret:
   default_user: rabbituser
-  default_pass: RabbitSecure2024
+  # Injected by deploy.sh: --set secret.default_pass=$RABBITMQ_PASSWORD.
+  # Never commit a real password here (CHANGEME is a no-real-secret placeholder).
+  default_pass: CHANGEME
 
 # B2 gap-fix (require-requests-limits): right-sized for the demo workload —
 # moderate queue depth, two durable queues. Review under production load.
