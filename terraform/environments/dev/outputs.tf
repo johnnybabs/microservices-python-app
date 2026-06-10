@@ -47,3 +47,13 @@ output "ecr_repository_urls" {
   description = "Hardened ECR repository URLs (A8)"
   value       = module.ecr.repository_urls
 }
+
+output "backup_bucket_name" {
+  description = "S3 backup bucket the mongodump/pg_dump CronJobs write to (I4/P5)"
+  value       = module.storage.backup_bucket_name
+}
+
+output "backup_irsa_role_arn" {
+  description = "Annotate the vidcast-backup ServiceAccount with eks.amazonaws.com/role-arn = this value (I4/P5)"
+  value       = module.storage.backup_irsa_role_arn
+}

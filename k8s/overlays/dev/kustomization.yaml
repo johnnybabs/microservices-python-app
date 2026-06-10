@@ -23,6 +23,9 @@ resources:
   # A2 idempotency claim store (in-cluster Redis, single replica). Not in the
   # replicas: list — Redis stays at 1.
   - ../../base/redis
+  # I4/P5 nightly mongodump + pg_dump CronJobs → S3 backup bucket. CronJob pods
+  # are short-lived and carry no replica count.
+  - ../../base/backup
 
 labels:
   - pairs:

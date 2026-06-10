@@ -26,6 +26,9 @@ resources:
   # use it, point the consumers' REDIS_HOST at the ElastiCache endpoint and drop
   # this resource. We keep Redis in-cluster per the cost boundary.
   - ../../base/redis
+  # I4/P5 nightly mongodump + pg_dump CronJobs → S3 backup bucket. CronJob pods
+  # are short-lived and carry no replica count.
+  - ../../base/backup
 
 # Org/governance labels. These are what Kyverno require-labels (B2) enforces.
 # environment distinguishes prod from dev; managed-by flips to "argocd" in B1.
