@@ -1,6 +1,6 @@
 # Merge-time runbook — RBAC + bcrypt (Fix 1)
 
-**Run this WITH John, at the moment the `feature/rbac-and-notifications` branch is
+**Run this WITH the operator, at the moment the `feature/rbac-and-notifications` branch is
 merged to `main` and CI builds the new auth image.** It is the operational
 counterpart to commit `6fd3b83`.
 

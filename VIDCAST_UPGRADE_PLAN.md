@@ -292,7 +292,7 @@ terraform.tfvars
 # Credentials and state
 deployment-ids.txt
 DEPLOYMENT_CONFIG.md
-DEPLOYMENT_HANDOVER.md
+DEPLOYMENT_GUIDE.md
 customise.sh
 
 # Build artifacts

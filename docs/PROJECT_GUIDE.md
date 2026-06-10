@@ -450,7 +450,7 @@ rebuild it identically in 20 minutes.*
   workflows in **this specific repo**"*:
 
   ```
-  token.actions.githubusercontent.com:sub  StringLike  "repo:johnnybabs/vidcast:*"
+  token.actions.githubusercontent.com:sub  StringLike  "repo:<YOUR_GITHUB_ORG>/vidcast:*"
   ```
   No long-lived secret ever touches the robot. If GitHub were compromised the badge
   still only works for our one repo, and only for the moment a job runs.
@@ -545,7 +545,7 @@ it needs; a **registry** is the warehouse that stores those packages. The chain:
 1. **A developer commits** code to Git and **pushes** to GitHub.
 2. **GitHub Actions wakes up**, clones the repo onto a fresh robot, and **builds** the
    Docker image for each changed service.
-3. **On a `main` push, the robot logs in to Docker Hub** as `johnbaabalola`, using a
+3. **On a `main` push, the robot logs in to Docker Hub** as `<YOUR_DOCKERHUB_USER>`, using a
    **token** kept in GitHub's encrypted **Secrets** (`DOCKERHUB_USERNAME` +
    `DOCKERHUB_TOKEN`), and **pushes** each image.
 4. Images are tagged with the exact **commit ID** (e.g. `…/auth-service:c36b319`) —
@@ -871,4 +871,4 @@ full context, a guest can follow the upload-to-download story without prior
 knowledge, and an assessor can see the reasoning behind every decision. For the
 line-by-line code companions, see the `*_EXPLAINED.md` files alongside each service;
 for the formal trade-off log, `docs/DECISIONS_MADE.md`; for bringing the cluster back,
-`DEPLOYMENT_HANDOVER.md`.*
+`DEPLOYMENT_GUIDE.md`.*

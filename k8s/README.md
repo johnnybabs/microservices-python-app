@@ -72,7 +72,7 @@ Image versions are set in each overlay's `images:` block, **not** by
 `kubectl set image`. Today the CD pipeline still patches the live Deployment
 directly; under B1 the pipeline will instead open a PR bumping `newTag` here, and
 the merge of that PR is the deploy. Backends are on Docker Hub
-(`johnbaabalola/<svc>-service`); the frontend is in this account's ECR (CI does
+(`<YOUR_DOCKERHUB_USER>/<svc>-service`); the frontend is in this account's ECR (CI does
 not build the frontend).
 
 ## Secrets

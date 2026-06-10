@@ -2,7 +2,7 @@
 
 > **Status: Sprint 0 deliverable. PLAN ONLY. No code has been written.**
 > This document is the sign-off gate for everything that follows. Nothing in
-> Sprints 1–5 starts until John explicitly approves (and answers the open
+> Sprints 1–5 starts until the operator explicitly approves (and answers the open
 > questions in §6). Honest dissent is in §7 — read it before signing.
 
 > **Author's framing note.** I read `TECHNICAL_ANALYSIS.md`, the two project
@@ -26,7 +26,7 @@
 | §3 Trade-off matrices | Every non-obvious decision, scored |
 | §4 Risk register (per sprint) | What breaks and how we prevent/detect it |
 | §5 Rollback strategy (per sprint) | How we undo each change if staging breaks |
-| §6 Open questions | What I need from John **before** Sprint 1 |
+| §6 Open questions | What I need from the operator **before** Sprint 1 |
 | §7 What I would push back on | Where I think the prompt is wrong/over-scoped |
 | §8 Revised readiness table | Where each capability moves, sprint by sprint |
 | §9 Per-sprint review-gate checklist | The one-page sign-off ritual |
@@ -99,7 +99,7 @@ Kubecost FinOps · B4 SLO burn-rate alerting · B5 cosign + Kyverno verify.
 
 ### 2.3 Execution split (non-negotiable per prompt §4)
 
-| I implement directly | John writes (I provide diffs + explanation only) |
+| I implement directly | the operator writes (I provide diffs + explanation only) |
 |---|---|
 | Terraform modules (RDS, DocumentDB/Atlas, Amazon MQ, ElastiCache, ECR, ESO IRSA) | `.github/workflows/ci.yml` changes (SBOM, SARIF, cosign sign) |
 | Helm values / installs (ESO, Kyverno, Argo CD, Kubecost, KEDA) | `.github/workflows/cd.yml` changes (open-PR-to-manifest-repo flow) |
@@ -109,9 +109,9 @@ Kubecost FinOps · B4 SLO burn-rate alerting · B5 cosign + Kyverno verify.
 | `ExternalSecret`/`SecretStore` CRDs, NetworkPolicies, KEDA `ScaledObject`, HPA | — |
 
 **Coupling this creates** (flagged early because it bites in Sprint 4): Kyverno
-`verify-images` (mine, B5) is inert until CI actually signs images (John's,
+`verify-images` (mine, B5) is inert until CI actually signs images (the operator's,
 B5/A8). We ship the policy in **Audit** mode first so it can't block deploys
-before signing exists, then promote to Enforce only after John's signing job is
+before signing exists, then promote to Enforce only after the operator's signing job is
 merged and producing signatures. Sequencing is in §2.5.
 
 ### 2.4 Dependency graph (why the sprint order is what it is)
@@ -159,7 +159,7 @@ that PR.
 **Honest caveat:** running two gates (Jenkins smoke-test AND manifest PR) is
 arguably redundant for a solo project. I keep both because the prompt says keep
 both and because it's a legitimate "I understand the difference between staging
-verification and prod authorisation" talking point. If John wants to simplify
+verification and prod authorisation" talking point. If the operator wants to simplify
 later, the cleaner end-state is Jenkins→Swarm smoke-test→auto-open-PR, GitHub
 review = the single human gate.
 
@@ -187,7 +187,7 @@ Atlas is genuine MongoDB, so it's zero application risk. DocumentDB's GridFS
 support is the single biggest sleeper risk in Part A5 — **I will write an
 explicit GridFS smoke test** (put a >255KB file so it chunks, read it back, byte
 -compare) and the plan does **not** assume DocumentDB until that test passes. If
-John prefers all-AWS for the compliance/narrative story, we run that test in
+the operator prefers all-AWS for the compliance/narrative story, we run that test in
 Sprint 1 and only then commit to DocumentDB. Atlas M0 (free) covers dev.
 
 ### 3.2 Broker choice
@@ -295,7 +295,7 @@ engine with more assembly; not worth it here.
 Driver: it's the strongest *and* the simplest here — no key to store (consistent
 with A9's "get secrets out of files" thesis), and the verifiable chain (Fulcio
 cert → Rekor log → Kyverno policy scoped to
-`repo:johnnybabs/vidcast`) is exactly the SLSA narrative B5/
+`repo:<YOUR_GITHUB_ORG>/vidcast`) is exactly the SLSA narrative B5/
 `SUPPLY_CHAIN.md` is meant to demonstrate. **Prerequisite I'll flag loudly:**
 keyless verification at admission requires the cluster to reach Fulcio/Rekor
 (public sigstore) — fine on EKS with egress; would need the NetworkPolicy DNS/
@@ -336,7 +336,7 @@ Severity: 🔴 high · 🟠 medium · 🟢 low. Each row: risk → mitigation �
 | 3.1 | 🔴 | Argo CD auto-sync (dev) fights manual `kubectl` changes → drift war / surprise reverts | Declare Argo the owner of app manifests once cutover; stop hand-`kubectl apply` for synced apps; document the new workflow in GITOPS.md | Argo "OutOfSync" / unexpected self-heal events |
 | 3.2 | 🔴 | Kyverno in **Enforce** too early blocks all deploys (e.g. require-non-root catches a stray pod) | Prompt-mandated: **Audit mode for one PR cycle**, fix violations, *then* Enforce; verify-images stays Audit until cosign signing exists | `kubectl get policyreport` shows violations before promotion |
 | 3.3 | 🟠 | Argo prod app auto-syncs by accident (gate bypassed) | `syncPolicy.automated` **absent** on prod Application; codify in review checklist; RBAC who can click "Sync" | Inspect prod Application spec; sync history |
-| 3.4 | 🟠 | Manifest-repo PR flow (CD change, John's) not ready → Argo has nothing to sync | Argo can point at the same repo's `overlays/prod` initially (in-repo), defer separate manifest repo if John prefers; decision in §6 | — |
+| 3.4 | 🟠 | Manifest-repo PR flow (CD change, the operator's) not ready → Argo has nothing to sync | Argo can point at the same repo's `overlays/prod` initially (in-repo), defer separate manifest repo if the operator prefers; decision in §6 | — |
 | 3.5 | 🟢 | Kyverno admission webhook latency / availability affects all pod creates | Kyverno HA not needed at this scale; `failurePolicy: Ignore` during Audit, revisit for Enforce | Webhook latency metric |
 
 ### Sprint 4 — Differentiation polish (B3 Kubecost, B4 SLO alerts, B5 cosign, A8 SBOM/SARIF)
@@ -380,13 +380,13 @@ only destructive sprint is 5, which gets a snapshot-first runbook.
 | **3** | B2 Kyverno | Set policy `validationFailureAction: Audit` (un-enforce) or `helm uninstall kyverno`. Audit mode means there's nothing to roll back during the trial cycle. |
 | **4** | B3 Kubecost | `helm uninstall kubecost`; pure observability, zero app impact. |
 | **4** | B4 SLO alerts | `kubectl delete prometheusrule`; restores prior alerting. The M-2 metrics fixes are additive (new `/metrics`, new exporter) — revert the gateway image + `helm uninstall` the exporter. |
-| **4** | B5 cosign verify | Kyverno `verify-images` → Audit or delete; CI signing job is John's (revert the workflow commit). |
-| **4** | A8 SBOM/SARIF | CI-only (John); revert the workflow commit. No cluster impact. |
+| **4** | B5 cosign verify | Kyverno `verify-images` → Audit or delete; CI signing job is the operator's (revert the workflow commit). |
+| **4** | A8 SBOM/SARIF | CI-only (the operator); revert the workflow commit. No cluster impact. |
 | **5** | Cutover to managed | **Snapshot first** (RDS snapshot, GridFS `mongodump`, `pg_dump`). Roll back = flip `use_managed_datastores=false`, re-point services at in-cluster charts, restore from dump if needed, `terraform destroy` the managed modules to stop the bill. The in-cluster charts are *not deleted* until a post-cutover soak passes. |
 
 ---
 
-## 6. Open questions for John (need answers before Sprint 1)
+## 6. Open questions for the operator (need answers before Sprint 1)
 
 1. **Cost posture (blocking — see §7.1).** Do you want managed datastores left
    *running* (steady ~$300–400/mo all-in), or built-as-code and only spun up for
@@ -557,7 +557,7 @@ per `TECHNICAL_ANALYSIS.md`.
 After each sprint I produce a **one-page review note** containing exactly:
 
 1. **What shipped** (files touched, separated into "I implemented" vs "diffs for
-   John to apply to CI/CD/Jenkins").
+   the operator to apply to CI/CD/Jenkins").
 2. **Proof it works** — the specific verification command(s) from §4/§5 and
    their output (e.g. the NetworkPolicy deny-test hanging; the duplicate-email
    count being zero; `kubectl get policyreport`).
@@ -569,7 +569,7 @@ After each sprint I produce a **one-page review note** containing exactly:
 5. **Cost impact** of anything applied (should be ~$0 until Sprint 5).
 6. **Open risks carried forward.**
 
-John signs off → next sprint starts. No sprint starts on an unsigned predecessor.
+the operator signs off → next sprint starts. No sprint starts on an unsigned predecessor.
 
 ---
 
@@ -589,7 +589,7 @@ John signs off → next sprint starts. No sprint starts on an unsigned predecess
 
 ## 11. Sign-off
 
-**This plan is complete and awaiting John's review.** I have **not** written any
+**This plan is complete and awaiting the operator's review.** I have **not** written any
 implementation code, Terraform, Helm values, manifests, or workflow changes.
 
 **Before Sprint 1 begins I need answers to §6 (especially 6.1 cost posture and

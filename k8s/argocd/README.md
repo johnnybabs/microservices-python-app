@@ -46,7 +46,7 @@ over the same Deployments. Multi-cluster would point each Application at a diffe
 
 - **Argo manages:** the app workloads in `k8s/overlays/{dev,prod}` (Deployments,
   Services, ConfigMaps, and the ESO-created Secrets).
-- **Manual / platform-owned (John):** Argo CD itself, KEDA, ESO, NetworkPolicies,
+- **Manual / platform-owned (the operator):** Argo CD itself, KEDA, ESO, NetworkPolicies,
   Kyverno. Platform layer ≠ application layer. See `GITOPS.md`.
 
 ## Rollback

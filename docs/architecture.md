@@ -13,7 +13,7 @@ This pattern (store-and-queue instead of store-and-block) is the same one used b
 ### Frontend Service
 
 - **Technology:** React 18 + Vite + Tailwind CSS, served by nginx
-- **Image:** `johnbaabalola/frontend`
+- **Image:** `<YOUR_DOCKERHUB_USER>/frontend`
 - **Port:** NodePort 30006
 - **Replicas:** 1
 - **Purpose:** Web interface — login, upload, download, monitoring dashboard, architecture diagram

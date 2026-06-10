@@ -53,7 +53,7 @@ Kustomize.
 | Layer | Owner | How it's applied |
 |---|---|---|
 | **App workloads** (Deployments, Services, ConfigMaps, ESO-created Secrets in `overlays/*`) | Argo CD | synced from git |
-| Argo CD itself | platform (John) | `helm install argocd` |
+| Argo CD itself | platform (the operator) | `helm install argocd` |
 | ESO (`ClusterSecretStore`, `ExternalSecret`s) | platform | `kubectl apply -f k8s/external-secrets` |
 | KEDA (`ScaledObject`, `TriggerAuthentication`) | platform | `kubectl apply -k k8s/keda` |
 | NetworkPolicies | platform | `kubectl apply -k k8s/network-policies` |
@@ -102,8 +102,8 @@ image tag in the overlay**, and Argo syncs. The deploy becomes a **git change wi
 a diff, a reviewer, and a permanent audit trail** — you can see exactly which image
 SHA went to prod, who approved it, and when, forever. Rollback is `git revert`.
 
-The "something that updates the tag" is a **CD change John writes** (workflows are
-John's per the execution split). Two options:
+The "something that updates the tag" is a **CD change the operator writes** (workflows are
+the operator's per the execution split). Two options:
 
 ### Option A (recommended) — all-GitHub
 
@@ -131,7 +131,7 @@ project, the marginal safety doesn't justify maintaining Jenkins + GitHub Action
 If you keep Jenkins, do Option B and demote Jenkins to "smoke-test then open PR"
 (its `kubectl`/rollback-undo stages go away — Argo owns deploy + rollback now).
 
-### Exact diff for John — `cd.yml` (Option A)
+### Exact diff for the operator — `cd.yml` (Option A)
 
 Replace the `kubectl set image` deploy with a tag-bump-and-PR job. The OIDC/EKS
 steps are no longer needed in CD (Argo deploys, not the workflow):
@@ -188,7 +188,7 @@ steps are no longer needed in CD (Argo deploys, not the workflow):
 +        run: |
 +          cd k8s/overlays/dev
 +          for svc in auth gateway converter notification; do
-+            kustomize edit set image johnbaabalola/${svc}-service:${SHORT_SHA}
++            kustomize edit set image <YOUR_DOCKERHUB_USER>/${svc}-service:${SHORT_SHA}
 +          done
 +      - name: Commit dev bump
 +        run: |
@@ -202,7 +202,7 @@ steps are no longer needed in CD (Argo deploys, not the workflow):
 +          git checkout -b "deploy/prod-${SHORT_SHA}"
 +          cd k8s/overlays/prod
 +          for svc in auth gateway converter notification; do
-+            kustomize edit set image johnbaabalola/${svc}-service:${SHORT_SHA}
++            kustomize edit set image <YOUR_DOCKERHUB_USER>/${svc}-service:${SHORT_SHA}
 +          done
 +          git commit -am "deploy(prod): bump images to ${SHORT_SHA}"
 +          git push origin "deploy/prod-${SHORT_SHA}"
@@ -211,7 +211,7 @@ steps are no longer needed in CD (Argo deploys, not the workflow):
 +        env: { GH_TOKEN: "${{ github.token }}" }
 ```
 
-> Notes for John: the `outbox-relay` image (A1) should be added to this loop and to
+> Notes for the operator: the `outbox-relay` image (A1) should be added to this loop and to
 > the overlays' `images:` lists once CI builds it. The `kustomize edit set image`
 > lines assume the overlay `images:` entries A10 created. The CD job no longer needs
 > AWS/EKS secrets — drop `AWS_DEPLOY_ROLE_ARN` etc. from CD (CI still uses them only
@@ -246,7 +246,7 @@ it by hand. To change something, change git.
 ## 9. Status / readiness
 
 - B1 ships the GitOps **machinery** (Argo install values + two Applications + this
-  doc). The CD tag-bump flow (§6) is John's to implement.
+  doc). The CD tag-bump flow (§6) is the operator's to implement.
 - Runtime verification (Argo UI showing the Application tree syncing) is deferred to
   the next live cluster re-apply — the cluster is currently torn down. The
   Application CRDs and Helm values are the reviewable artifacts now.

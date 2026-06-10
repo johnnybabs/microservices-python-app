@@ -45,7 +45,7 @@ The Kyverno `verify-images` policy (B5) must match the certificate identity belo
 workflow on `main`:
 
 ```
-certificate-identity:      https://github.com/johnnybabs/vidcast/.github/workflows/ci.yml@refs/heads/main
+certificate-identity:      https://github.com/<YOUR_GITHUB_ORG>/vidcast/.github/workflows/ci.yml@refs/heads/main
 certificate-oidc-issuer:   https://token.actions.githubusercontent.com
 ```
 
@@ -54,8 +54,8 @@ certificate-oidc-issuer:   https://token.actions.githubusercontent.com
 - If you lock the OIDC trust to a tag/release instead of a branch, the
   `@refs/heads/main` suffix changes to `@refs/tags/<tag>`.
 
-Repos signed: `johnbaabalola/{auth,gateway,converter,notification}-service` (Docker
-Hub) and `501562869470.dkr.ecr.eu-west-2.amazonaws.com/vidcast-frontend` (ECR).
+Repos signed: `<YOUR_DOCKERHUB_USER>/{auth,gateway,converter,notification}-service` (Docker
+Hub) and `<AWS_ACCOUNT_ID>.dkr.ecr.eu-west-2.amazonaws.com/vidcast-frontend` (ECR).
 
 ---
 
@@ -64,15 +64,15 @@ Hub) and `501562869470.dkr.ecr.eu-west-2.amazonaws.com/vidcast-frontend` (ECR).
 ```bash
 # Any signed image (by tag or, better, by digest):
 cosign verify \
-  --certificate-identity   'https://github.com/johnnybabs/vidcast/.github/workflows/ci.yml@refs/heads/main' \
+  --certificate-identity   'https://github.com/<YOUR_GITHUB_ORG>/vidcast/.github/workflows/ci.yml@refs/heads/main' \
   --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
-  johnbaabalola/gateway-service:<SHORT_SHA>
+  <YOUR_DOCKERHUB_USER>/gateway-service:<SHORT_SHA>
 
 # Inspect the attached SBOM attestation:
 cosign verify-attestation --type cyclonedx \
-  --certificate-identity   'https://github.com/johnnybabs/vidcast/.github/workflows/ci.yml@refs/heads/main' \
+  --certificate-identity   'https://github.com/<YOUR_GITHUB_ORG>/vidcast/.github/workflows/ci.yml@refs/heads/main' \
   --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
-  johnbaabalola/gateway-service:<SHORT_SHA>
+  <YOUR_DOCKERHUB_USER>/gateway-service:<SHORT_SHA>
 ```
 
 A passing `cosign verify` proves: this exact image digest was signed by *our* CI
@@ -87,8 +87,8 @@ The last link: `k8s/kyverno/verify-images.yaml` checks the signature **at admiss
 — before a pod is allowed to run. It is now pointed at the real repos and the exact
 keyless identity above:
 
-- **imageReferences:** `docker.io/johnbaabalola/*` (backends) **and**
-  `501562869470.dkr.ecr.eu-west-2.amazonaws.com/vidcast-frontend*` (frontend) — **both
+- **imageReferences:** `docker.io/<YOUR_DOCKERHUB_USER>/*` (backends) **and**
+  `<AWS_ACCOUNT_ID>.dkr.ecr.eu-west-2.amazonaws.com/vidcast-frontend*` (frontend) — **both
   registries verified**.
 - **attestor:** keyless, `subject` = the A8 identity, `issuer` = GitHub OIDC,
   `rekor.url` = `https://rekor.sigstore.dev`.
@@ -127,7 +127,7 @@ terraform plan   # should then show only the immutability/scan/lifecycle deltas
 
 ---
 
-## CI diff for John (you write these — `.github/workflows/ci.yml`)
+## CI diff for the operator (you write these — `.github/workflows/ci.yml`)
 
 Four steps added to the `build-and-scan` job. Keyless signing + SARIF upload need
 extra job permissions. Apply as one coherent change:
@@ -244,7 +244,7 @@ extra job permissions. Apply as one coherent change:
 +      #   secrets: { registry-username: ..., registry-password: ... }
 ```
 
-**Why these belong to John:** they live under `.github/workflows/`, which is the
+**Why these belong to the operator:** they live under `.github/workflows/`, which is the
 CI/CD boundary you own. The Kyverno side (B5) is mine and only goes to Enforce once
 these steps are merged and have produced at least one verifiable signature.
 
@@ -264,7 +264,7 @@ these steps are merged and have produced at least one verifiable signature.
 |------|-------|
 | ECR Terraform (immutability/scan/lifecycle) | ✅ written, `terraform validate` passes; `import` + `apply` owed at re-apply |
 | Cosign signing identity documented | ✅ (above — B5 consumes it) |
-| CI diffs (SBOM/SARIF/cosign/provenance) | ✅ provided for John; not applied (his boundary) |
+| CI diffs (SBOM/SARIF/cosign/provenance) | ✅ provided for the operator; not applied (his boundary) |
 | Kyverno `verify-images` (B5) | ✅ activated, both registries, real identity, **Audit** (parses; `kustomize build` → 7 policies, 0 Enforce) |
 | Sigstore egress NetworkPolicy (B5) | ✅ written (kyverno ns, Egress-only); apply + runtime-verify owed |
-| Signatures actually in Rekor + a live PASS | ⏳ deferred — needs John's CI merged + a real run |
+| Signatures actually in Rekor + a live PASS | ⏳ deferred — needs the operator's CI merged + a real run |

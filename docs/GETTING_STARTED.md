@@ -45,7 +45,7 @@ aws sts get-caller-identity
 ## 1. Clone
 
 ```bash
-git clone https://github.com/johnnybabs/vidcast.git
+git clone https://github.com/<YOUR_GITHUB_ORG>/vidcast.git
 cd vidcast
 ```
 
