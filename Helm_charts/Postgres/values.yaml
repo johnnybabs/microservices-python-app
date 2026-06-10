@@ -13,6 +13,10 @@ container:
     # Injected by deploy.sh: --set container.env.password=$POSTGRES_PASSWORD.
     # Never commit a real password here (CHANGEME is a no-real-secret placeholder).
     password: CHANGEME
+    # scram-sha-256: passwords are actually enforced (H-2 fix). Requires POSTGRES_PASSWORD
+    # to be non-empty (which deploy.sh guarantees via --set). Changed from 'trust', which
+    # accepted any password — access was network-controlled but the credential was cosmetic.
+    authMethod: scram-sha-256
     db: authdb
 
 # B2 gap-fix (require-requests-limits): right-sized for the demo workload — small
