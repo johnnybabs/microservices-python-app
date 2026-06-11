@@ -1,4 +1,4 @@
-# A6 / I4 — network exceptions for the backup CronJobs (mongo-backup, postgres-backup).
+# Network exceptions for the backup CronJobs (mongo-backup, postgres-backup).
 #
 # Under default-deny (ingress AND egress), a backup pod can do nothing until both
 # ends of each connection are allowed:

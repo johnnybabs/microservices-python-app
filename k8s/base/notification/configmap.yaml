@@ -16,7 +16,7 @@ data:
   IDEMPOTENCY_ENABLED: "false"
   IDEMPOTENCY_TTL_SECONDS: "300"
   REDIS_HOST: "redis"
-  # B3 batch summary email: the notification service reads job_status to know when
+  # Batch summary email: the notification service reads job_status to know when
   # a multi-file batch is complete. This default URI has NO credentials, so on an
   # auth-required mongod the connection fails and the service safely falls back to
   # one email per file. To ENABLE batch summaries in a live cluster, two infra

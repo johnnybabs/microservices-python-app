@@ -14,9 +14,7 @@ export async function register(email, password) {
   return res.data
 }
 
-// Upload one or more video files (B1 batch). Accepts a single File or an array;
-// each is appended under "file" so the gateway's getlist("file") sees them all.
-// Returns { batch_id, results, queued, failed }.
+// Upload one or more files (each appended under "file"). Returns { batch_id, results, queued, failed }.
 export async function uploadVideo(files, token) {
   const form = new FormData()
   const list = Array.isArray(files) ? files : [files]

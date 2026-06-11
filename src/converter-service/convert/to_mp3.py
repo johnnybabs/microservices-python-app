@@ -9,23 +9,17 @@ import moviepy.editor
 def start(message, fs_videos, fs_mp3s, channel):
     message = json.loads(message)
 
-    # empty temp file
     tf = tempfile.NamedTemporaryFile()
-    # video content
     out = fs_videos.get(ObjectId(message["video_fid"]))
-    # add video content to temp file
     tf.write(out.read())
-    # create audio from temp video file
     audio = moviepy.editor.VideoFileClip(tf.name).audio
     tf.close()
 
-    # write audio to the file
     tf_path = tempfile.gettempdir() + f"/{message['video_fid']}.mp3"
     audio.write_audiofile(tf_path)
 
-    # save the file to the mongodb database. Copy the owner tag from the video
-    # message onto the mp3 so /my-files and the unseen-count badge can find it;
-    # .get() keeps backward-compat with old messages that have no username.
+    # Carry owner_email from the video onto the mp3 so /my-files finds it; .get()
+    # tolerates older messages with no username.
     f = open(tf_path, "rb")
     data = f.read()
     fid = fs_mp3s.put(
@@ -49,8 +43,7 @@ def start(message, fs_videos, fs_mp3s, channel):
         )
     except Exception:
         fs_mp3s.delete(fid)
-        # (result, err): no result on failure.
         return None, "failed to publish message"
 
-    # (result, err): UX4 ready-status fields for the consumer to persist.
+    # Hand back the mp3 id + size for the consumer to record as the ready status.
     return {"mp3_fid": str(fid), "mp3_size": len(data)}, None

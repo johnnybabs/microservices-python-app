@@ -1,4 +1,4 @@
-# Backup storage (I4 / P5).
+# Backup storage.
 #
 # A single private, versioned, encrypted S3 bucket that the nightly mongodump /
 # pg_dump CronJobs write to, plus the IRSA role those CronJobs assume to do so.

@@ -15,16 +15,13 @@ _mongo_client = None
 
 
 def _job_status_collection():
-    """B3: lazy handle to the `videos.job_status` collection used to decide when a
-    batch is complete. Returns None if MONGODB_URI is unset or Mongo is unreachable
-    — the caller then degrades to individual per-file emails (still correct, just N
-    emails instead of one summary).
+    """Lazy handle to videos.job_status, used to tell when a batch is complete.
+    Returns None if MONGODB_URI is unset or Mongo is unreachable — the caller then
+    degrades to one email per file.
 
-    DEPLOY PREREQUISITES for the summary to actually fire (documented in the
-    assessment): (1) a credentialed MONGODB_URI in notification-secret (the
-    configmap default has no auth), and (2) a notification→mongodb:27017
-    NetworkPolicy egress rule (default-deny blocks it today). Without them this
-    safely falls back to individual emails."""
+    Needs two infra additions to actually fire (both blocked today): a credentialed
+    MONGODB_URI in notification-secret (the configmap default has no auth), and a
+    notification→mongodb:27017 NetworkPolicy egress rule (default-deny blocks it)."""
     global _mongo_client
     uri = os.environ.get("MONGODB_URI")
     if not uri:
@@ -60,8 +57,7 @@ def notification(message):
     receiver_address = message.get("username")
     correlation_id = message.get("correlation_id", "legacy")
 
-    # Backward compatibility: messages published before per-user routing existed
-    # have no `username`. Skip (ACK) rather than crash or loop forever on them.
+    # Pre-routing messages have no username — skip (ACK) rather than loop forever.
     if not receiver_address:
         log.info("No username on message, skipping email", correlation_id=correlation_id, mp3_fid=message.get("mp3_fid"))
         return None
@@ -69,9 +65,8 @@ def notification(message):
     batch_id = message.get("batch_id")
     batch_size = message.get("batch_size", 1)
 
-    # B3: batch path. _handle_batch returns False if Mongo is unavailable (→ fall
-    # back to an individual email), None if it handled things (sent the summary or
-    # is deliberately waiting for other files), or an error string to retry.
+    # _handle_batch returns False (Mongo down → individual email), None (handled,
+    # or waiting for other files), or an error string (retry).
     if batch_id and batch_size and batch_size > 1:
         result = _handle_batch(message, batch_id, receiver_address, correlation_id)
         if result is not False:
@@ -165,7 +160,7 @@ def _send_batch_summary(message, docs, receiver_address, correlation_id, batch_i
 
 def _send_individual(message, receiver_address, correlation_id):
     mp3_fid = message.get("mp3_fid")
-    # UX2: name the file in the email; .get default for pre-Sprint-4 messages.
+    # .get default for messages without a filename (pre-Sprint-4).
     original_filename = message.get("original_filename") or "your file"
     vidcast_url = os.environ.get("VIDCAST_URL", "http://localhost:30006").rstrip("/")
     display_name = receiver_address.split("@")[0]

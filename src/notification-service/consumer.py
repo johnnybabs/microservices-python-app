@@ -23,7 +23,6 @@ NOTIFICATIONS = Counter(
 )
 
 def main():
-    # rabbitmq connection
     credentials = pika.PlainCredentials(
         os.environ.get("RABBITMQ_DEFAULT_USER", "guest"),
         os.environ.get("RABBITMQ_DEFAULT_PASS", "guest"),
@@ -52,8 +51,8 @@ def main():
     pathlib.Path("/tmp/healthy").touch()
 
     def callback(ch, method, properties, body):
-        # I8/P3: carry the correlation id the gateway stamped (forwarded by the
-        # converter on the mp3 message). "legacy" for old/unparseable bodies.
+        # correlation id forwarded from the gateway via the converter; "legacy"
+        # for old/unparseable bodies.
         try:
             correlation_id = json.loads(body).get("correlation_id", "legacy")
         except Exception:

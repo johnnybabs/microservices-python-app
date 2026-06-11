@@ -26,8 +26,7 @@ export function userFromToken(token) {
   const email = claims?.username || null
   return {
     email,
-    // UX1: friendly nav-bar name. Prefer the display_name claim; fall back to the
-    // email local-part for tokens minted before that claim existed.
+    // Prefer the display_name claim; fall back to the email local-part for old tokens.
     name: claims?.display_name || (email ? email.split('@')[0] : null),
     role: claims?.role || 'anonymous',
     // Read the backward-compatible boolean; fall back to role string.

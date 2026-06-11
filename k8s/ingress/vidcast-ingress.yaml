@@ -1,4 +1,4 @@
-# P1 / I7 — public entrypoint for VidCast via an AWS ALB (provisioned by the AWS
+# Public entrypoint for VidCast via an AWS ALB (provisioned by the AWS
 # Load Balancer Controller from this Ingress).
 #
 # ROUTING DECISION (important): a single rule sends ALL paths to the `frontend`
