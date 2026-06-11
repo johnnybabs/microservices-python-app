@@ -83,12 +83,11 @@ export default function Upload({ token }) {
         <p className="text-gray-500">Drag & drop video files, or click to browse</p>
       </div>
 
-      {/* UX6: single-file guidance is now "one at a time OR a batch". UX7: formats +
-          the real size limit (256MB — frontend nginx client_max_body_size). */}
+      {/* Batch guidance + accepted formats and the real size limit (256MB — frontend nginx). */}
       <p className="text-gray-500 text-xs mt-3">Up to {MAX_BATCH} files per batch — you'll get one email when the whole batch is ready.</p>
       <p className="text-gray-500 text-xs mt-1">Accepts MP4, MOV, MKV, AVI, WebM, M4V · Maximum 256MB per file</p>
 
-      {/* B4: selected-file list with per-file remove. */}
+      {/* Selected files, with per-file remove. */}
       {files.length > 0 && (
         <div className="mt-4 bg-indigo-950 border border-indigo-800 rounded-xl divide-y divide-indigo-900">
           {files.map((f, i) => (
@@ -115,7 +114,7 @@ export default function Upload({ token }) {
         </button>
       )}
 
-      {/* UX5 + B4: confirmation with file count and batch email note. */}
+      {/* Upload confirmation. */}
       {status?.type === 'success' && (
         <div className="mt-4 p-4 rounded-lg bg-green-900/40 text-green-300">
           <p className="font-semibold">

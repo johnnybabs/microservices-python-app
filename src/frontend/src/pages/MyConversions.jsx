@@ -9,7 +9,7 @@ function formatSize(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-// UX8: human-friendly upload date, e.g. "12 Jun 2026, 14:32".
+// Human-friendly date, e.g. "12 Jun 2026, 14:32".
 function formatDate(iso) {
   if (!iso) return '—'
   const d = new Date(iso)
@@ -19,7 +19,7 @@ function formatDate(iso) {
   })
 }
 
-// UX4: three-state status pill (plus a terminal "failed").
+// Status pill (queued / processing / ready / failed).
 function StatusBadge({ status }) {
   const s = status || 'ready'
   const styles = {
@@ -36,9 +36,8 @@ function StatusBadge({ status }) {
   )
 }
 
-// B4: turn the flat /my-files list into render rows. Single uploads (batch_id null)
-// stay inline; batched files get a group header row followed by their members.
-// Input is already newest-first, so first-seen order is preserved.
+// Group batched files under a header row; single uploads stay inline. Input is
+// already newest-first, so first-seen order is preserved.
 function buildRows(files) {
   const byBatch = {}
   for (const f of files) {
@@ -67,13 +66,13 @@ export default function MyConversions({ token, onSeen }) {
   const [error, setError] = useState('')
   const [downloading, setDownloading] = useState(null)
 
-  // UX3: visiting this page marks downloads as seen (clears the nav badge).
+  // Visiting this page clears the nav badge.
   useEffect(() => {
     if (onSeen) onSeen()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // UX4: load, and keep polling every 10s while anything is queued/processing.
+  // Load, then poll every 10s while anything is queued/processing.
   useEffect(() => {
     let cancelled = false
     let timer = null
@@ -152,7 +151,7 @@ export default function MyConversions({ token, onSeen }) {
       {loading && <p className="text-gray-400">Loading…</p>}
       {error && <p className="text-red-400 text-sm mb-4">{error}</p>}
 
-      {/* UX9: empty state with a call to action. */}
+      {/* Empty state. */}
       {!loading && !error && files.length === 0 && (
         <div className="bg-indigo-950 border border-indigo-800 rounded-xl p-8 text-center text-gray-400">
           <p className="mb-3">No conversions yet.</p>

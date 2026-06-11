@@ -38,13 +38,11 @@ def main():
     client = MongoClient(os.environ.get('MONGODB_URI'))
     db_videos = client.videos
     db_mp3s = client.mp3s
-    # gridfs
     fs_videos = gridfs.GridFS(db_videos)
     fs_mp3s = gridfs.GridFS(db_mp3s)
 
-    # UX4: the job_status collection the gateway seeds as "queued" (same `videos`
-    # database). The converter advances it. Best-effort — status is a UX nicety and
-    # must never break or delay a conversion.
+    # job_status the gateway seeded as "queued" (same videos DB); the converter
+    # advances it. Best-effort — never break or delay a conversion over status.
     job_status_col = db_videos.job_status
 
     def _set_status(video_fid, **fields):
@@ -56,7 +54,6 @@ def main():
         except Exception as e:
             log.error("job_status update failed", correlation_id="none", error=str(e))
 
-    # rabbitmq connection
     credentials = pika.PlainCredentials(
         os.environ.get("RABBITMQ_DEFAULT_USER", "guest"),
         os.environ.get("RABBITMQ_DEFAULT_PASS", "guest"),
@@ -86,9 +83,7 @@ def main():
     pathlib.Path("/tmp/healthy").touch()
 
     def callback(ch, method, properties, body):
-        # I8/P3: read the correlation id the gateway stamped on the message so this
-        # service's logs share the same trace id. "legacy" for pre-correlation or
-        # unparseable messages (backward compatible — never crash on a bad body).
+        # correlation id from the gateway; "legacy" for old/unparseable bodies.
         try:
             parsed = json.loads(body)
         except Exception:

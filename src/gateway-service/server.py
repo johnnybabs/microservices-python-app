@@ -29,26 +29,18 @@ from jsonlog import get_logger
 server = Flask(__name__)
 CORS(server)
 
-# I8/P3 structured logging.
 log = get_logger("gateway")
 
-# A10 rate limiting. flask-limiter backed by the EXISTING in-cluster Redis so the
-# counters are shared across gunicorn's worker processes (an in-memory store would
-# count per-worker → N× the intended limit). Port is fixed at the redis Service's
-# 6379: we deliberately do NOT read a REDIS_PORT env var because the in-namespace
-# `redis` Service injects REDIS_PORT=tcp://<ip>:6379 via Docker service links (the
-# gateway Deployment, unlike the consumers, does not set enableServiceLinks:false),
-# which would corrupt the URI.
+# Rate limits backed by the in-cluster Redis so the counters are shared across
+# gunicorn workers. Port is hardcoded: K8s service links inject REDIS_PORT as
+# tcp://<ip>:6379, so reading that env var would corrupt the URI.
 REDIS_HOST = os.environ.get("REDIS_HOST", "redis")
 
 
 def _client_ip():
-    # The gateway is behind the frontend's nginx (and the ALB), so request.remote_addr
-    # is the proxy, not the user. Key the limit on the real client from the first
-    # X-Forwarded-For hop, falling back to the socket peer. Keying on the proxy IP
-    # instead would collapse /login into ONE global bucket (a lockout DoS). Caveat:
-    # XFF is client-spoofable (nginx appends rather than replaces) — documented in
-    # docs/OBSERVABILITY.md as a known limitation of app-layer IP limiting here.
+    # Behind nginx/ALB, request.remote_addr is the proxy. Key on the first
+    # X-Forwarded-For hop so /login isn't one global bucket (a lockout DoS).
+    # Caveat: XFF is client-spoofable since nginx appends rather than replaces it.
     xff = request.headers.get("X-Forwarded-For", "")
     if xff:
         return xff.split(",")[0].strip()
@@ -60,22 +52,18 @@ limiter = Limiter(
     app=server,
     storage_uri=f"redis://{REDIS_HOST}:6379",
     strategy="fixed-window",
-    default_limits=[],  # no global limit — only /login and /upload are decorated
-    # Degrade to a per-process in-memory limiter if Redis is unreachable (e.g. the
-    # gateway→redis NetworkPolicy egress rule has not been applied yet) rather than
-    # failing the request. See docs/OBSERVABILITY.md.
+    default_limits=[],  # only /login and /upload are limited
+    # Degrade to in-memory if Redis is unreachable rather than failing the request.
     in_memory_fallback_enabled=True,
 )
 
-# B4 SLO instrumentation. We record every request EXCEPT the scrape itself and the
-# liveness check, so /metrics polling and probes don't pollute the availability SLI.
+# Don't meter the scrape or liveness probe — they'd skew the availability SLI.
 _UNMETERED = {"metrics", "healthz"}
 
 
 @server.before_request
 def _metrics_before():
-    # I8/P3: a fresh correlation id per request, attached to every log line and
-    # threaded into the RabbitMQ message so one upload is greppable end to end.
+    # Fresh correlation id per request, threaded into the logs and queue message.
     g.correlation_id = str(uuid.uuid4())
     if request.endpoint in _UNMETERED:
         return
@@ -120,17 +108,13 @@ fs_mp3s = gridfs.GridFS(mongo_mp3.db)
 outbox = mongo_video.db.outbox
 OUTBOX_ENABLED = os.environ.get("OUTBOX_ENABLED", "false").strip().lower() == "true"
 
-# UX4: per-upload status tracking (queued → processing → ready/failed). Lives in
-# the same `videos` database the gateway already uses, keyed by video_fid. The
-# gateway writes "queued"; the converter advances it (it shares this DB). Additive
-# — pre-Sprint-4 uploads simply have no doc here and /my-files defaults them to
-# "ready" (their mp3 already exists).
+# Per-upload status (queued → processing → ready/failed), keyed by video_fid in
+# the videos DB. Gateway writes "queued"; the converter advances it. Additive —
+# pre-Sprint-4 uploads have no doc, and /my-files defaults them to "ready".
 job_status = mongo_video.db.job_status
 
-# B1: max files per batch upload. Sized for the Wavelength narrative (8 producers
-# each submitting ~2–3 recordings in one session); 20 is a comfortable ceiling that
-# bounds a single request without constraining real use. Each file is an
-# independent job — KEDA scales the converter on the resulting queue depth.
+# Cap on files per batch upload. Each file is an independent job; KEDA scales the
+# converter on the resulting queue depth.
 MAX_BATCH_SIZE = 20
 
 rabbitmq_credentials = pika.PlainCredentials(
@@ -168,7 +152,7 @@ def healthz():
     return jsonify({"status": "ok" if status_code == 200 else "degraded", "checks": checks}), status_code
 
 @server.route("/login", methods=["POST"])
-@limiter.limit("10 per minute")  # A10: brute-force protection on credential checks
+@limiter.limit("10 per minute")  # brute-force protection
 def login():
     token, err = access.login(request)
 
@@ -187,9 +171,8 @@ def register():
         return err
 
 @server.route("/upload", methods=["POST"])
-# A10 + B5: each FILE counts against the 20/hour quota, not each request. The cost
-# callable returns the batch size so a batch of 8 consumes 8 tokens. flask-limiter
-# >=3.5 (gateway requirements) supports the `cost` callable.
+# Each FILE counts against the 20/hour quota — the cost callable returns the batch
+# size, so a batch of 8 consumes 8 tokens.
 @limiter.limit("20 per hour", cost=lambda: max(1, len(request.files.getlist("file"))))
 def upload():
     access, err = validate.token(request)
@@ -199,13 +182,11 @@ def upload():
 
     access = json.loads(access)
 
-    # AUTHORIZATION: uploading is a core action available to ANY authenticated
-    # user, not just admins. A valid token is all that's required to upload.
+    # Any authenticated user can upload (not just admins).
     if not access:
         return "not authorized", 401
 
-    # B1: accept 1..N files under the "file" field. getlist returns one entry for a
-    # single-file upload, so the single-file path is the N=1 case of the same loop.
+    # 1..N files under "file"; a single upload is just the N=1 case.
     files = request.files.getlist("file")
     if not files:
         return jsonify({"error": "no files provided"}), 400
@@ -213,8 +194,7 @@ def upload():
         return jsonify({"error": f"maximum {MAX_BATCH_SIZE} files per batch"}), 400
 
     batch_size = len(files)
-    # B2: a batch_id groups a multi-file request; single uploads stay ungrouped
-    # (None) so the UI shows them exactly as before.
+    # A batch_id groups a multi-file request; single uploads stay ungrouped.
     batch_id = str(uuid.uuid4()) if batch_size > 1 else None
 
     results = []
@@ -234,7 +214,7 @@ def upload():
             results.append({"filename": getattr(f, "filename", None), "error": file_err})
         else:
             queued += 1
-            UPLOADS.inc()  # SLO 3: one accepted video per successfully-queued file.
+            UPLOADS.inc()  # one accepted video per queued file
             results.append({
                 "filename": getattr(f, "filename", None),
                 "video_fid": video_fid,
@@ -262,9 +242,7 @@ def download():
 
     access = json.loads(access)
 
-    # AUTHORIZATION: downloading is available to any authenticated user (same
-    # rationale as /upload). Per-user ownership scoping of downloads is layered on
-    # in Fix 2 via GridFS owner_email metadata; here we only require a valid token.
+    # Any authenticated user can download.
     if not access:
         return "not authorized", 401
 
@@ -275,7 +253,7 @@ def download():
 
     try:
         out = fs_mp3s.get(ObjectId(fid_string))
-        # A12 download audit: who downloaded which file, when, and how big.
+        # Audit: who downloaded which file, when, how big.
         log.info(
             "File downloaded",
             correlation_id=g.correlation_id,
@@ -296,15 +274,9 @@ def download():
 
 @server.route("/my-files", methods=["GET"])
 def my_files():
-    """List the current user's conversions, newest first, each with a UX4 status.
-
-    Two sources, merged and de-duped on video_fid:
-      - job_status docs (Sprint 4): queued/processing/ready/failed jobs, so an
-        upload appears immediately — before its mp3 exists.
-      - legacy mp3s in GridFS with no status doc (pre-Sprint-4 uploads): surfaced
-        as "ready" so old conversions still appear and stay downloadable.
-    The download `fid` is the mp3 id (null until status == ready).
-    """
+    """List the user's conversions newest-first with a status. Merges job_status
+    docs (so an upload appears before its mp3 exists) with legacy mp3s that predate
+    status tracking (shown as "ready"). `fid` is the mp3 id, null until ready."""
     access, err = validate.token(request)
     if err:
         return err
@@ -324,13 +296,13 @@ def my_files():
             "status": j.get("status", "ready"),
             "size": j.get("mp3_size"),
             "created": j["created_at"].isoformat() if j.get("created_at") else None,
-            # B2: batch grouping for the UI (None/1 for single uploads + pre-Sprint-5 docs).
+            # batch grouping (None/1 for singles + pre-Sprint-5 docs)
             "batch_id": j.get("batch_id"),
             "batch_size": j.get("batch_size", 1),
         })
 
-    # Legacy completed mp3s with no status doc → "ready". The converter names the
-    # mp3 "<video_fid>.mp3", so we dedupe against the job_status video_fids above.
+    # Legacy mp3s with no status doc → "ready". They're named "<video_fid>.mp3",
+    # so dedupe against the job_status video_fids above.
     for f in fs_mp3s.find({"metadata.owner_email": owner}).sort("uploadDate", -1):
         vfid = f.filename[:-4] if f.filename and f.filename.endswith(".mp3") else None
         if vfid and vfid in seen:
@@ -347,14 +319,14 @@ def my_files():
             "batch_size": 1,
         })
 
-    # Single newest-first ordering across both sources (ISO-8601 sorts lexically).
+    # Newest-first across both sources (ISO-8601 sorts lexically).
     files.sort(key=lambda x: x["created"] or "", reverse=True)
     return jsonify({"files": files}), 200
 
 
 @server.route("/batch/<batch_id>", methods=["GET"])
 def batch_status(batch_id):
-    """B2: aggregate status of one batch, scoped to the requesting user."""
+    """Aggregate status of one batch, scoped to the user."""
     access, err = validate.token(request)
     if err:
         return err
@@ -385,7 +357,7 @@ def batch_status(batch_id):
 
 @server.route("/status/<video_fid>", methods=["GET"])
 def status(video_fid):
-    """UX4: current status of one job, scoped to the requesting user."""
+    """Status of one job, scoped to the user."""
     access, err = validate.token(request)
     if err:
         return err

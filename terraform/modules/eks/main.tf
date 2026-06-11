@@ -41,7 +41,7 @@ resource "aws_eks_node_group" "this" {
   depends_on = [aws_eks_cluster.this]
 }
 
-# VPC CNI add-on with the in-cluster NetworkPolicy enforcement agent enabled (A6).
+# VPC CNI add-on with the in-cluster NetworkPolicy enforcement agent enabled.
 # WITHOUT this, NetworkPolicy objects are accepted by the API server but NEVER
 # enforced — they become decorative YAML and the default-deny silently does
 # nothing. enableNetworkPolicy flips on the eBPF agent in the aws-node DaemonSet.
@@ -75,7 +75,7 @@ resource "aws_iam_openid_connect_provider" "eks" {
   tags = var.tags
 }
 
-# --- EBS CSI driver (A11 durability prerequisite) ---------------------------
+# --- EBS CSI driver (durability prerequisite) ---------------------------
 # This cluster shipped with NO CSI driver, so dynamically-provisioned EBS PVCs
 # stay Pending forever (the in-tree kubernetes.io/aws-ebs provisioner is removed
 # in k8s 1.31). Installing the managed aws-ebs-csi-driver addon is what lets the

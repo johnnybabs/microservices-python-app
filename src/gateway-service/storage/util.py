@@ -26,8 +26,7 @@ def _record_queued(job_status, fid, username, correlation_id, original_filename,
             "created_at": now,
             "updated_at": now,
             "mp3_fid": None,
-            # B2: batch grouping. None/1 for single-file uploads — read with
-            # .get() everywhere so pre-Sprint-5 docs (no field) stay valid.
+            # None/1 for single uploads; read with .get() so pre-Sprint-5 docs stay valid.
             "batch_id": batch_id,
             "batch_size": batch_size,
         })
@@ -65,11 +64,8 @@ def upload(f, fs, channel, access, outbox=None, outbox_enabled=False,
         log.error("GridFS store failed", correlation_id=correlation_id, error=str(err))
         return None, "could not store the file"
 
-    # correlation_id rides in the message body so the converter and notification
-    # service log the same id — one upload is greppable across all services (I8/P3).
-    # original_filename (UX2) lets the notification email name the file and the
-    # converter/UI show it instead of a raw ObjectId. batch_id/batch_size (B2) let
-    # the notification service batch-summarise — None/1 for single-file uploads.
+    # These ride in the message so downstream services share the trace id, the
+    # email can name the file, and batches can be summarised. None/1 for singles.
     message = {
         "video_fid": str(fid),
         "mp3_fid": None,
@@ -80,32 +76,16 @@ def upload(f, fs, channel, access, outbox=None, outbox_enabled=False,
         "batch_size": batch_size,
     }
 
-    # UX4: record the job as "queued" so the My Conversions UI can show a status
-    # immediately (before any email). Best-effort — status tracking must never
-    # break an upload, so a failure here only logs. The converter advances this to
-    # "processing"/"ready". Cleaned up below if the publish/outbox then fails.
+    # Record the job as "queued" so the UI shows status before any email. The
+    # converter advances it; cleaned up below if the publish/outbox then fails.
     _record_queued(job_status, fid, access["username"], correlation_id,
                    original_filename, batch_id=batch_id, batch_size=batch_size)
 
-    # A1 transactional outbox. When OUTBOX_ENABLED is true the gateway does NOT
-    # publish to RabbitMQ here — it records the event in the MongoDB `outbox`
-    # collection, and the single-replica outbox-relay publishes it asynchronously
-    # on its next poll. This guarantees the event survives a broker outage at
-    # upload time: the row is durable in Mongo even if RabbitMQ is down, and gets
-    # published once the broker recovers. The compensating fs.delete is KEPT as a
-    # belt-and-braces fallback (per PHASE_UP_PLAN §7.5) — if the outbox write
-    # itself fails, we roll back the orphaned GridFS object, exactly as the
-    # direct-publish path does on a broker failure. It is removed only in a clean
-    # follow-up once the outbox is proven in a live soak.
-    #
-    # Consistency note (honest): on the in-cluster mongo:4.0.8 standalone there is
-    # no multi-document transaction (that needs a replica set), so the GridFS put
-    # and the outbox insert are two sequential writes, not one atomic unit. The
-    # ordering (GridFS first, then outbox) plus the compensating delete bounds the
-    # failure window to "process crash between the two writes" — which orphans a
-    # video with no event, the same window the direct-publish path already has.
-    # True atomicity is a documented benefit of managed Mongo (Atlas replica set);
-    # see MANAGED_SERVICES.md §3.
+    # Transactional outbox: when enabled, record the event in Mongo instead of
+    # publishing directly, and let the single-replica outbox-relay publish it — so
+    # an upload survives a broker outage. The compensating fs.delete stays as a
+    # fallback. (No multi-doc transaction on the standalone mongod, so the GridFS
+    # put and outbox insert aren't atomic; ordering + the delete bound the window.)
     if outbox_enabled and outbox is not None:
         try:
             outbox.insert_one(

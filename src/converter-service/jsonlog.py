@@ -1,23 +1,10 @@
-"""Structured JSON logger for VidCast services (I8 / P3).
+"""Structured JSON logger: one JSON object per line on stdout, carrying a service
+name and an optional correlation_id threaded through from the request.
 
-Every log line is a single JSON object on stdout with consistent fields:
-  timestamp       ISO-8601 UTC
-  level           INFO / WARNING / ERROR / ...
-  service         injected at get_logger() (e.g. "gateway")
-  correlation_id  request/job trace id; "none" if not supplied
-  message         human-readable text
-  <extra>         any keyword args passed at the call site
-
-Usage:
-  from jsonlog import get_logger
-  log = get_logger("gateway")
-  log.info("File uploaded", correlation_id=cid, file_size_bytes=123, user=email)
-
-NOTE: this file is duplicated verbatim into each service directory. The services
-are separate Docker build contexts with no shared package on PYTHONPATH (same
-reason idempotency.py / rabbitmq_retry.py are duplicated), so a single
-src/shared/ module would not be importable inside the per-service images without
-a Dockerfile change — which this sprint must not make.
+Duplicated into each service directory on purpose — the services are separate
+Docker build contexts with no shared package on PYTHONPATH (same reason
+idempotency.py is duplicated), so a shared module isn't importable without a
+Dockerfile change.
 """
 import json
 import logging
