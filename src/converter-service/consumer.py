@@ -11,6 +11,9 @@ import gridfs
 from convert import to_mp3
 import rabbitmq_retry
 import idempotency
+from jsonlog import get_logger
+
+log = get_logger("converter")
 
 # B4 SLO 2 (conversion latency). This consumer has no HTTP server, so we expose a
 # tiny prometheus endpoint on its own thread (start_http_server) which a PodMonitor
@@ -68,6 +71,14 @@ def main():
     pathlib.Path("/tmp/healthy").touch()
 
     def callback(ch, method, properties, body):
+        # I8/P3: read the correlation id the gateway stamped on the message so this
+        # service's logs share the same trace id. "legacy" for pre-correlation or
+        # unparseable messages (backward compatible — never crash on a bad body).
+        try:
+            correlation_id = json.loads(body).get("correlation_id", "legacy")
+        except Exception:
+            correlation_id = "legacy"
+
         # A2: claim-once on the video_fid so a redelivered/duplicate message is
         # not converted twice (which would produce a duplicate mp3 + email). The
         # claim is keyed per service to avoid colliding with the mp3 pipeline.
@@ -78,7 +89,7 @@ def main():
             except Exception:
                 job_id = None  # unparseable body — fall through and let A3 handle it
             if job_id and not idempotency.claim_once(job_id):
-                print(f"[idempotency] duplicate, skipping {job_id}", flush=True)
+                log.info("Duplicate message skipped", correlation_id=correlation_id, job_id=job_id)
                 ch.basic_ack(delivery_tag=method.delivery_tag)
                 return
 
@@ -88,7 +99,7 @@ def main():
         try:
             err = to_mp3.start(body, fs_videos, fs_mp3s, ch)
         except Exception as e:
-            print(f"converter error: {e}", flush=True)
+            log.error("Conversion error", correlation_id=correlation_id, error=str(e))
             err = str(e)
 
         if err:
@@ -96,6 +107,7 @@ def main():
             # Route to retry (or terminal DLQ after MAX_RETRIES), then ACK the
             # original so it leaves the main queue — no more infinite requeue.
             outcome = rabbitmq_retry.handle_failure(ch, properties, body, video_queue)
+            log.warning("Conversion failed", correlation_id=correlation_id, outcome=outcome)
             # A2: release the claim ONLY on a retry, so the next attempt can
             # re-claim. On a terminal DLQ outcome keep the claim (permanent fail).
             if job_id and outcome == "retry":
@@ -103,6 +115,7 @@ def main():
             ch.basic_ack(delivery_tag=method.delivery_tag)
         else:
             CONVERSIONS.labels("success").inc()
+            log.info("Conversion complete", correlation_id=correlation_id)
             # SLO 2: observe publish→write latency when the publisher stamped a
             # timestamp (older messages without one are simply not measured).
             if properties is not None and properties.timestamp:
@@ -114,7 +127,7 @@ def main():
         queue=video_queue, on_message_callback=callback
     )
 
-    print("Waitting for messages, to exit press CTRL+C")
+    log.info("Converter ready, waiting for messages")
 
     channel.start_consuming()
 
@@ -122,7 +135,7 @@ if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        print("Interrupted")
+        log.info("Interrupted")
         try:
             sys.exit(0)
         except SystemExit:
