@@ -4,8 +4,12 @@ import time
 
 import pika
 
+from jsonlog import get_logger
 
-def upload(f, fs, channel, access, outbox=None, outbox_enabled=False):
+log = get_logger("gateway")
+
+
+def upload(f, fs, channel, access, outbox=None, outbox_enabled=False, correlation_id="none"):
     try:
         # Tag the stored video with its owner (the uploader's JWT email) and a
         # filename. owner_email is what /my-files and the unseen-count badge
@@ -16,13 +20,16 @@ def upload(f, fs, channel, access, outbox=None, outbox_enabled=False):
             metadata={"owner_email": access["username"]},
         )
     except Exception as err:
-        print(err)
+        log.error("GridFS store failed", correlation_id=correlation_id, error=str(err))
         return "internal server error, fs level", 500
 
+    # correlation_id rides in the message body so the converter and notification
+    # service log the same id — one upload is greppable across all services (I8/P3).
     message = {
         "video_fid": str(fid),
         "mp3_fid": None,
         "username": access["username"],
+        "correlation_id": correlation_id,
     }
 
     # A1 transactional outbox. When OUTBOX_ENABLED is true the gateway does NOT
@@ -56,9 +63,10 @@ def upload(f, fs, channel, access, outbox=None, outbox_enabled=False):
                 }
             )
         except Exception as err:
-            print(err)
+            log.error("Outbox write failed", correlation_id=correlation_id, error=str(err))
             fs.delete(fid)
             return f"internal server error, outbox write failed, {err}", 500
+        log.info("Upload queued via outbox", correlation_id=correlation_id, video_fid=str(fid))
         return None
 
     # Legacy direct-publish path (OUTBOX_ENABLED=false, the default). Preserved
@@ -76,7 +84,8 @@ def upload(f, fs, channel, access, outbox=None, outbox_enabled=False):
                 timestamp=int(time.time()),
             ),
         )
+        log.info("Upload published", correlation_id=correlation_id, video_fid=str(fid))
     except Exception as err:
-        print(err)
+        log.error("RabbitMQ publish failed", correlation_id=correlation_id, error=str(err))
         fs.delete(fid)
         return f"internal server error rabbitmq issue, {err}", 500

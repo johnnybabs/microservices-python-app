@@ -3,6 +3,10 @@ import os
 import smtplib
 from email.message import EmailMessage
 
+from jsonlog import get_logger
+
+log = get_logger("notification")
+
 
 def notification(message):
     """Send the "your audio is ready" email to the user who uploaded the video.
@@ -21,16 +25,17 @@ def notification(message):
         message = json.loads(message)
     except (ValueError, TypeError) as err:
         # Unparseable body — it will never succeed on retry, so drop it (ACK).
-        print(f"notification: dropping unparseable message: {err}")
+        log.warning("Dropping unparseable message", correlation_id="legacy", error=str(err))
         return None
 
     mp3_fid = message.get("mp3_fid")
     receiver_address = message.get("username")
+    correlation_id = message.get("correlation_id", "legacy")
 
     # Backward compatibility: messages published before per-user routing existed
     # have no `username`. Skip (ACK) rather than crash or loop forever on them.
     if not receiver_address:
-        print(f"notification: mp3 {mp3_fid} has no username, skipping email")
+        log.info("No username on message, skipping email", correlation_id=correlation_id, mp3_fid=mp3_fid)
         return None
 
     sender_address = os.environ.get("GMAIL_ADDRESS")
@@ -58,8 +63,8 @@ def notification(message):
         # message is requeued. NOTE: a *permanently* bad credential will requeue
         # in a loop — in production we'd bound that with a dead-letter queue and a
         # max-retry policy. Deliberately out of scope here (no new infra).
-        print(f"notification: failed to send mail for mp3 {mp3_fid}: {err}")
+        log.error("Email send failed", correlation_id=correlation_id, mp3_fid=mp3_fid, error=str(err))
         return f"email send failed: {err}"
 
-    print(f"notification: mail sent to {receiver_address} for mp3 {mp3_fid}")
+    log.info("Mail sent", correlation_id=correlation_id, mp3_fid=mp3_fid, recipient=receiver_address)
     return None
