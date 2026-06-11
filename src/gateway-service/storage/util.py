@@ -9,7 +9,8 @@ from jsonlog import get_logger
 log = get_logger("gateway")
 
 
-def _record_queued(job_status, fid, username, correlation_id, original_filename):
+def _record_queued(job_status, fid, username, correlation_id, original_filename,
+                   batch_id=None, batch_size=1):
     """Best-effort insert of the UX4 'queued' status doc. Never raises — status
     tracking is a UX nicety and must not fail an upload."""
     if job_status is None:
@@ -25,6 +26,10 @@ def _record_queued(job_status, fid, username, correlation_id, original_filename)
             "created_at": now,
             "updated_at": now,
             "mp3_fid": None,
+            # B2: batch grouping. None/1 for single-file uploads — read with
+            # .get() everywhere so pre-Sprint-5 docs (no field) stay valid.
+            "batch_id": batch_id,
+            "batch_size": batch_size,
         })
     except Exception as err:
         log.error("job_status queued insert failed", correlation_id=correlation_id, error=str(err))
@@ -42,7 +47,10 @@ def _clear_status(job_status, fid):
 
 
 def upload(f, fs, channel, access, outbox=None, outbox_enabled=False,
-           correlation_id="none", job_status=None):
+           correlation_id="none", job_status=None, batch_id=None, batch_size=1):
+    """Store one uploaded video and queue its conversion. Returns
+    (video_fid, error) — error is None on success, a short string on failure.
+    Each call is one independent job; the batch path (B1) just loops over this."""
     original_filename = getattr(f, "filename", None)
     try:
         # Tag the stored video with its owner (the uploader's JWT email) and a
@@ -55,25 +63,29 @@ def upload(f, fs, channel, access, outbox=None, outbox_enabled=False,
         )
     except Exception as err:
         log.error("GridFS store failed", correlation_id=correlation_id, error=str(err))
-        return "internal server error, fs level", 500
+        return None, "could not store the file"
 
     # correlation_id rides in the message body so the converter and notification
     # service log the same id — one upload is greppable across all services (I8/P3).
     # original_filename (UX2) lets the notification email name the file and the
-    # converter/UI show it instead of a raw ObjectId.
+    # converter/UI show it instead of a raw ObjectId. batch_id/batch_size (B2) let
+    # the notification service batch-summarise — None/1 for single-file uploads.
     message = {
         "video_fid": str(fid),
         "mp3_fid": None,
         "username": access["username"],
         "correlation_id": correlation_id,
         "original_filename": original_filename,
+        "batch_id": batch_id,
+        "batch_size": batch_size,
     }
 
     # UX4: record the job as "queued" so the My Conversions UI can show a status
     # immediately (before any email). Best-effort — status tracking must never
     # break an upload, so a failure here only logs. The converter advances this to
     # "processing"/"ready". Cleaned up below if the publish/outbox then fails.
-    _record_queued(job_status, fid, access["username"], correlation_id, original_filename)
+    _record_queued(job_status, fid, access["username"], correlation_id,
+                   original_filename, batch_id=batch_id, batch_size=batch_size)
 
     # A1 transactional outbox. When OUTBOX_ENABLED is true the gateway does NOT
     # publish to RabbitMQ here — it records the event in the MongoDB `outbox`
@@ -109,9 +121,9 @@ def upload(f, fs, channel, access, outbox=None, outbox_enabled=False,
             log.error("Outbox write failed", correlation_id=correlation_id, error=str(err))
             fs.delete(fid)
             _clear_status(job_status, fid)
-            return f"internal server error, outbox write failed, {err}", 500
+            return None, "could not queue the upload"
         log.info("Upload queued via outbox", correlation_id=correlation_id, video_fid=str(fid))
-        return None
+        return str(fid), None
 
     # Legacy direct-publish path (OUTBOX_ENABLED=false, the default). Preserved
     # verbatim so behaviour is identical to today when the flag is off.
@@ -133,4 +145,6 @@ def upload(f, fs, channel, access, outbox=None, outbox_enabled=False,
         log.error("RabbitMQ publish failed", correlation_id=correlation_id, error=str(err))
         fs.delete(fid)
         _clear_status(job_status, fid)
-        return f"internal server error rabbitmq issue, {err}", 500
+        return None, "could not queue the upload"
+
+    return str(fid), None

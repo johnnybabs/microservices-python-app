@@ -36,6 +36,31 @@ function StatusBadge({ status }) {
   )
 }
 
+// B4: turn the flat /my-files list into render rows. Single uploads (batch_id null)
+// stay inline; batched files get a group header row followed by their members.
+// Input is already newest-first, so first-seen order is preserved.
+function buildRows(files) {
+  const byBatch = {}
+  for (const f of files) {
+    if (f.batch_id) (byBatch[f.batch_id] = byBatch[f.batch_id] || []).push(f)
+  }
+  const rows = []
+  const seen = new Set()
+  for (const f of files) {
+    if (f.batch_id) {
+      if (!seen.has(f.batch_id)) {
+        seen.add(f.batch_id)
+        const members = byBatch[f.batch_id]
+        rows.push({ type: 'header', key: `h:${f.batch_id}`, created: members[0].created, count: members.length })
+        members.forEach((m) => rows.push({ type: 'file', key: m.video_fid || m.fid, file: m, batched: true }))
+      }
+    } else {
+      rows.push({ type: 'file', key: f.video_fid || f.fid, file: f, batched: false })
+    }
+  }
+  return rows
+}
+
 export default function MyConversions({ token, onSeen }) {
   const [files, setFiles] = useState([])
   const [loading, setLoading] = useState(true)
@@ -45,12 +70,10 @@ export default function MyConversions({ token, onSeen }) {
   // UX3: visiting this page marks downloads as seen (clears the nav badge).
   useEffect(() => {
     if (onSeen) onSeen()
-    // run once on mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // UX4: load, and keep polling every 10s while anything is queued/processing.
-  // Self-rescheduling timeout stops as soon as everything is ready/failed.
   useEffect(() => {
     let cancelled = false
     let timer = null
@@ -82,7 +105,6 @@ export default function MyConversions({ token, onSeen }) {
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      // UX8: download under the original filename (extension swapped to .mp3).
       const base = (filename || fid).replace(/\.[^/.]+$/, '')
       a.download = `${base}.mp3`
       a.click()
@@ -93,6 +115,34 @@ export default function MyConversions({ token, onSeen }) {
       setDownloading(null)
     }
   }
+
+  function fileRow(f, batched) {
+    return (
+      <tr className="border-b border-indigo-900 last:border-0 hover:bg-indigo-900/40">
+        <td className={`px-4 py-3 text-gray-200 ${batched ? 'pl-8' : ''}`}>
+          {batched && <span className="text-indigo-700 mr-1">└─</span>}{f.filename || f.fid}
+        </td>
+        <td className="px-4 py-3 text-gray-400">{formatDate(f.created)}</td>
+        <td className="px-4 py-3"><StatusBadge status={f.status} /></td>
+        <td className="px-4 py-3 text-gray-400">{formatSize(f.size)}</td>
+        <td className="px-4 py-3 text-right">
+          {f.status === 'ready' && f.fid ? (
+            <button
+              onClick={() => handleDownload(f.fid, f.filename)}
+              disabled={downloading === f.fid}
+              className="bg-purple-700 hover:bg-purple-600 disabled:opacity-50 rounded-lg px-3 py-1.5 font-semibold transition-colors"
+            >
+              {downloading === f.fid ? 'Downloading…' : '⬇ MP3'}
+            </button>
+          ) : (
+            <span className="text-gray-600 text-xs">{f.status === 'failed' ? 'unavailable' : '—'}</span>
+          )}
+        </td>
+      </tr>
+    )
+  }
+
+  const rows = buildRows(files)
 
   return (
     <div className="max-w-3xl mx-auto mt-10">
@@ -128,27 +178,17 @@ export default function MyConversions({ token, onSeen }) {
               </tr>
             </thead>
             <tbody>
-              {files.map((f) => (
-                <tr key={f.video_fid || f.fid} className="border-b border-indigo-900 last:border-0 hover:bg-indigo-900/40">
-                  <td className="px-4 py-3 text-gray-200">{f.filename || f.fid}</td>
-                  <td className="px-4 py-3 text-gray-400">{formatDate(f.created)}</td>
-                  <td className="px-4 py-3"><StatusBadge status={f.status} /></td>
-                  <td className="px-4 py-3 text-gray-400">{formatSize(f.size)}</td>
-                  <td className="px-4 py-3 text-right">
-                    {f.status === 'ready' && f.fid ? (
-                      <button
-                        onClick={() => handleDownload(f.fid, f.filename)}
-                        disabled={downloading === f.fid}
-                        className="bg-purple-700 hover:bg-purple-600 disabled:opacity-50 rounded-lg px-3 py-1.5 font-semibold transition-colors"
-                      >
-                        {downloading === f.fid ? 'Downloading…' : '⬇ MP3'}
-                      </button>
-                    ) : (
-                      <span className="text-gray-600 text-xs">{f.status === 'failed' ? 'unavailable' : '—'}</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
+              {rows.map((r) =>
+                r.type === 'header' ? (
+                  <tr key={r.key} className="bg-indigo-900/40 border-b border-indigo-800">
+                    <td colSpan={5} className="px-4 py-2 text-xs font-semibold text-purple-300">
+                      📦 Batch upload — {formatDate(r.created)} ({r.count} file{r.count > 1 ? 's' : ''})
+                    </td>
+                  </tr>
+                ) : (
+                  <React.Fragment key={r.key}>{fileRow(r.file, r.batched)}</React.Fragment>
+                )
+              )}
             </tbody>
           </table>
         </div>
