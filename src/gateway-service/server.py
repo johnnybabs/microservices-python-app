@@ -120,6 +120,13 @@ fs_mp3s = gridfs.GridFS(mongo_mp3.db)
 outbox = mongo_video.db.outbox
 OUTBOX_ENABLED = os.environ.get("OUTBOX_ENABLED", "false").strip().lower() == "true"
 
+# UX4: per-upload status tracking (queued → processing → ready/failed). Lives in
+# the same `videos` database the gateway already uses, keyed by video_fid. The
+# gateway writes "queued"; the converter advances it (it shares this DB). Additive
+# — pre-Sprint-4 uploads simply have no doc here and /my-files defaults them to
+# "ready" (their mp3 already exists).
+job_status = mongo_video.db.job_status
+
 rabbitmq_credentials = pika.PlainCredentials(
     os.environ.get("RABBITMQ_DEFAULT_USER", "guest"),
     os.environ.get("RABBITMQ_DEFAULT_PASS", "guest"),
@@ -197,7 +204,7 @@ def upload():
     for _, f in request.files.items():
         err = util.upload(
             f, fs_videos, channel, access, outbox, OUTBOX_ENABLED,
-            correlation_id=g.correlation_id,
+            correlation_id=g.correlation_id, job_status=job_status,
         )
 
         if err:
@@ -252,12 +259,14 @@ def download():
 
 @server.route("/my-files", methods=["GET"])
 def my_files():
-    """List the converted mp3s owned by the current user, newest first.
+    """List the current user's conversions, newest first, each with a UX4 status.
 
-    Ownership is the metadata.owner_email tag written on the GridFS object at
-    conversion time (converter) — set from the uploader's JWT username. Files
-    uploaded before per-user ownership existed have no tag and simply don't
-    appear here (correct: they predate the concept; no backfill needed).
+    Two sources, merged and de-duped on video_fid:
+      - job_status docs (Sprint 4): queued/processing/ready/failed jobs, so an
+        upload appears immediately — before its mp3 exists.
+      - legacy mp3s in GridFS with no status doc (pre-Sprint-4 uploads): surfaced
+        as "ready" so old conversions still appear and stay downloadable.
+    The download `fid` is the mp3 id (null until status == ready).
     """
     access, err = validate.token(request)
     if err:
@@ -268,14 +277,60 @@ def my_files():
 
     owner = access["username"]
     files = []
+    seen = set()
+    for j in job_status.find({"username": owner}).sort("created_at", -1):
+        seen.add(j["video_fid"])
+        files.append({
+            "fid": j.get("mp3_fid"),
+            "video_fid": j["video_fid"],
+            "filename": j.get("original_filename") or j["video_fid"],
+            "status": j.get("status", "ready"),
+            "size": j.get("mp3_size"),
+            "created": j["created_at"].isoformat() if j.get("created_at") else None,
+        })
+
+    # Legacy completed mp3s with no status doc → "ready". The converter names the
+    # mp3 "<video_fid>.mp3", so we dedupe against the job_status video_fids above.
     for f in fs_mp3s.find({"metadata.owner_email": owner}).sort("uploadDate", -1):
+        vfid = f.filename[:-4] if f.filename and f.filename.endswith(".mp3") else None
+        if vfid and vfid in seen:
+            continue
         files.append({
             "fid": str(f._id),
+            "video_fid": vfid,
             "filename": f.filename,
+            "status": "ready",
             "size": f.length,
             "created": f.upload_date.isoformat() if f.upload_date else None,
         })
+
+    # Single newest-first ordering across both sources (ISO-8601 sorts lexically).
+    files.sort(key=lambda x: x["created"] or "", reverse=True)
     return jsonify({"files": files}), 200
+
+
+@server.route("/status/<video_fid>", methods=["GET"])
+def status(video_fid):
+    """UX4: current status of one job, scoped to the requesting user."""
+    access, err = validate.token(request)
+    if err:
+        return err
+    access = json.loads(access)
+    if not access:
+        return "not authorized", 401
+
+    doc = job_status.find_one(
+        {"video_fid": video_fid, "username": access["username"]},
+        {"_id": 0},
+    )
+    if not doc:
+        return jsonify({"error": "not found"}), 404
+    return jsonify({
+        "status": doc.get("status", "ready"),
+        "original_filename": doc.get("original_filename", ""),
+        "mp3_fid": doc.get("mp3_fid"),
+        "updated_at": doc["updated_at"].isoformat() if doc.get("updated_at") else None,
+    }), 200
 
 
 @server.route("/notifications/unseen-count", methods=["GET"])
