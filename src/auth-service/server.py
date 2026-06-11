@@ -118,6 +118,12 @@ def CreateJWT(username, secret, role):
             # claim that supports more roles later (auditor, support, ...).
             "admin": role == "admin",
             "role": role,
+            # UX1: a friendly display name for the nav bar. Derived from the email
+            # local-part — a user-chosen name would need a new Postgres column, and
+            # init.sql lives in the Helm chart (adding a column needs a live-DB
+            # migration), both out of this sprint's scope. The frontend applies the
+            # same fallback for tokens minted before this claim existed.
+            "display_name": username.split("@")[0],
         },
         secret,
         algorithm="HS256",

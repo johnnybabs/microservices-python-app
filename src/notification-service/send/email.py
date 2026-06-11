@@ -31,6 +31,8 @@ def notification(message):
     mp3_fid = message.get("mp3_fid")
     receiver_address = message.get("username")
     correlation_id = message.get("correlation_id", "legacy")
+    # UX2: name the file in the email; .get default for pre-Sprint-4 messages.
+    original_filename = message.get("original_filename") or "your file"
 
     # Backward compatibility: messages published before per-user routing existed
     # have no `username`. Skip (ACK) rather than crash or loop forever on them.
@@ -40,14 +42,30 @@ def notification(message):
 
     sender_address = os.environ.get("GMAIL_ADDRESS")
     sender_password = os.environ.get("GMAIL_PASSWORD")
+    # UX2: public URL of the VidCast web app for the "go to your conversions" link.
+    # Defaults to a dev placeholder; set VIDCAST_URL to the real ALB hostname in the
+    # prod overlay. Documented in docs/OBSERVABILITY.md.
+    vidcast_url = os.environ.get("VIDCAST_URL", "http://localhost:30006").rstrip("/")
+    # Friendly greeting name from the email local-part (matches the JWT display_name
+    # derivation; the message doesn't carry display_name).
+    display_name = receiver_address.split("@")[0]
 
     msg = EmailMessage()
+    # UX2: subject names the file; body adds a reference (correlation_id) for
+    # support and links to the authenticated conversions page — note it no longer
+    # prints the mp3 file id (the download key), tightening A8.
     msg.set_content(
-        "Your VidCast audio is ready.\n\n"
-        f"File ID: {mp3_fid}\n\n"
-        "Download it from the VidCast app using this file ID."
+        f"Hi {display_name},\n\n"
+        "Your video has been converted to audio and is ready for download.\n\n"
+        f"File: {original_filename}\n"
+        f"Reference: {correlation_id}\n\n"
+        "Download your audio by logging in to VidCast and visiting your\n"
+        f"conversions page:\n{vidcast_url}/my-files\n\n"
+        "Keep this reference number if you need to contact support about this\n"
+        f"conversion: {correlation_id}\n\n"
+        "— The VidCast Platform"
     )
-    msg["Subject"] = "Your VidCast audio is ready"
+    msg["Subject"] = f"Your audio is ready: {original_filename}"
     msg["From"] = sender_address
     msg["To"] = receiver_address
 
