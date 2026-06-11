@@ -84,6 +84,19 @@ module "external_secrets" {
   tags              = local.common_tags
 }
 
+# AWS Load Balancer Controller IRSA (P1 / I7). The controller (installed via Helm
+# into kube-system) provisions ALBs from Ingress resources and assumes this role
+# through its ServiceAccount. Separate module to avoid an iam↔eks dependency cycle
+# (the role's trust needs the OIDC provider that the eks module creates).
+module "lbc" {
+  source = "../../modules/lbc"
+
+  cluster_name      = var.cluster_name
+  oidc_provider_arn = module.eks.oidc_provider_arn
+  oidc_provider_url = module.eks.oidc_provider_url
+  tags              = local.common_tags
+}
+
 # Backup storage (I4 / P5). A private, versioned, encrypted S3 bucket the nightly
 # mongodump / pg_dump CronJobs write to, plus the IRSA role (default:vidcast-backup)
 # those jobs assume — scoped to PutObject on this bucket only. Cost: a few pennies

@@ -6,7 +6,10 @@ metadata:
     # B4: the ServiceMonitor selects the Service by this label.
     app: rabbitmq
 spec:
-  type: NodePort
+  # I2: ClusterIP only. The management UI (15672) loses its NodePort — reach it via
+  # `kubectl port-forward svc/rabbitmq 15672` for admin. AMQP (5672) and the
+  # Prometheus port (15692) were already in-cluster only.
+  type: ClusterIP
   selector:
     app: rabbitmq
   ports:
@@ -14,7 +17,6 @@ spec:
       protocol: TCP
       port: 15672
       targetPort: 15672
-      nodePort: 30004
     - name: amqp
       protocol: TCP
       port: 5672
