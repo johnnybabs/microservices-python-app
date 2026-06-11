@@ -1,0 +1,41 @@
+# Kubecost on its own subdomain (kubecost.vidcast.online), sharing the same ALB as
+# the frontend via group.name: vidcast.
+#
+# Why a subdomain and not /kubecost on the main host: Kubecost's UI falls back to
+# sandbox.html when served from a subpath without base-path config (and an ALB
+# can't strip the path prefix). Serving it at a host root sidesteps that entirely.
+#
+# This Ingress lives in the kubecost namespace because an Ingress can only target
+# Services in its own namespace — hence a separate manifest rather than a second
+# rule on the default-namespace frontend Ingress. *.vidcast.online (wildcard ACM
+# cert) covers this host; ${ACM_CERTIFICATE_ARN} is filled at deploy.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: kubecost
+  namespace: kubecost
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/group.name: vidcast
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80,"HTTPS":443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/certificate-arn: "${ACM_CERTIFICATE_ARN}"
+    alb.ingress.kubernetes.io/healthcheck-path: /
+spec:
+  ingressClassName: alb
+  rules:
+    - host: kubecost.vidcast.online
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: kubecost-cost-analyzer
+                port:
+                  number: 9090
+  tls:
+    - hosts:
+        - kubecost.vidcast.online
+      secretName: vidcast-tls
