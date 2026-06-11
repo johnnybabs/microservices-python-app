@@ -127,6 +127,12 @@ OUTBOX_ENABLED = os.environ.get("OUTBOX_ENABLED", "false").strip().lower() == "t
 # "ready" (their mp3 already exists).
 job_status = mongo_video.db.job_status
 
+# B1: max files per batch upload. Sized for the Wavelength narrative (8 producers
+# each submitting ~2–3 recordings in one session); 20 is a comfortable ceiling that
+# bounds a single request without constraining real use. Each file is an
+# independent job — KEDA scales the converter on the resulting queue depth.
+MAX_BATCH_SIZE = 20
+
 rabbitmq_credentials = pika.PlainCredentials(
     os.environ.get("RABBITMQ_DEFAULT_USER", "guest"),
     os.environ.get("RABBITMQ_DEFAULT_PASS", "guest"),
@@ -181,7 +187,10 @@ def register():
         return err
 
 @server.route("/upload", methods=["POST"])
-@limiter.limit("20 per hour")  # A10: conservative per-client upload quota
+# A10 + B5: each FILE counts against the 20/hour quota, not each request. The cost
+# callable returns the batch size so a batch of 8 consumes 8 tokens. flask-limiter
+# >=3.5 (gateway requirements) supports the `cost` callable.
+@limiter.limit("20 per hour", cost=lambda: max(1, len(request.files.getlist("file"))))
 def upload():
     access, err = validate.token(request)
 
@@ -191,30 +200,58 @@ def upload():
     access = json.loads(access)
 
     # AUTHORIZATION: uploading is a core action available to ANY authenticated
-    # user, not just admins. We previously gated on access["admin"], which only
-    # worked because every JWT claimed admin=true. With real RBAC, admin is
-    # reserved for privileged views (Dashboard/Architecture/Users); a valid token
-    # is all that's required to upload.
+    # user, not just admins. A valid token is all that's required to upload.
     if not access:
         return "not authorized", 401
 
-    if len(request.files) > 1 or len(request.files) < 1:
-        return "exactly 1 file required", 400
+    # B1: accept 1..N files under the "file" field. getlist returns one entry for a
+    # single-file upload, so the single-file path is the N=1 case of the same loop.
+    files = request.files.getlist("file")
+    if not files:
+        return jsonify({"error": "no files provided"}), 400
+    if len(files) > MAX_BATCH_SIZE:
+        return jsonify({"error": f"maximum {MAX_BATCH_SIZE} files per batch"}), 400
 
-    for _, f in request.files.items():
-        err = util.upload(
+    batch_size = len(files)
+    # B2: a batch_id groups a multi-file request; single uploads stay ungrouped
+    # (None) so the UI shows them exactly as before.
+    batch_id = str(uuid.uuid4()) if batch_size > 1 else None
+
+    results = []
+    queued = 0
+    failed = 0
+    for f in files:
+        # Each file is an independent job with its own correlation id and lifecycle.
+        cid = str(uuid.uuid4())
+        video_fid, file_err = util.upload(
             f, fs_videos, channel, access, outbox, OUTBOX_ENABLED,
-            correlation_id=g.correlation_id, job_status=job_status,
+            correlation_id=cid, job_status=job_status,
+            batch_id=batch_id, batch_size=batch_size,
         )
+        if file_err:
+            # One bad file does not abort the batch — record it and continue.
+            failed += 1
+            results.append({"filename": getattr(f, "filename", None), "error": file_err})
+        else:
+            queued += 1
+            UPLOADS.inc()  # SLO 3: one accepted video per successfully-queued file.
+            results.append({
+                "filename": getattr(f, "filename", None),
+                "video_fid": video_fid,
+                "status": "queued",
+            })
 
-        if err:
-            return err
-
-    # SLO 3 numerator denominator source: count one accepted video per upload that
-    # reached the queue/outbox without error (we returned above on failure).
-    UPLOADS.inc()
-    log.info("Upload accepted", correlation_id=g.correlation_id, user=access["username"])
-    return "success!", 200
+    log.info(
+        "Upload accepted", correlation_id=g.correlation_id, user=access["username"],
+        batch_id=batch_id, batch_size=batch_size, queued=queued, failed=failed,
+    )
+    # 202 Accepted — the work is queued, not finished.
+    return jsonify({
+        "batch_id": batch_id,
+        "results": results,
+        "queued": queued,
+        "failed": failed,
+    }), 202
 
 @server.route("/download", methods=["GET"])
 def download():
@@ -287,6 +324,9 @@ def my_files():
             "status": j.get("status", "ready"),
             "size": j.get("mp3_size"),
             "created": j["created_at"].isoformat() if j.get("created_at") else None,
+            # B2: batch grouping for the UI (None/1 for single uploads + pre-Sprint-5 docs).
+            "batch_id": j.get("batch_id"),
+            "batch_size": j.get("batch_size", 1),
         })
 
     # Legacy completed mp3s with no status doc → "ready". The converter names the
@@ -302,11 +342,45 @@ def my_files():
             "status": "ready",
             "size": f.length,
             "created": f.upload_date.isoformat() if f.upload_date else None,
+            # Legacy single uploads were never batched.
+            "batch_id": None,
+            "batch_size": 1,
         })
 
     # Single newest-first ordering across both sources (ISO-8601 sorts lexically).
     files.sort(key=lambda x: x["created"] or "", reverse=True)
     return jsonify({"files": files}), 200
+
+
+@server.route("/batch/<batch_id>", methods=["GET"])
+def batch_status(batch_id):
+    """B2: aggregate status of one batch, scoped to the requesting user."""
+    access, err = validate.token(request)
+    if err:
+        return err
+    access = json.loads(access)
+    if not access:
+        return "not authorized", 401
+
+    docs = list(job_status.find(
+        {"batch_id": batch_id, "username": access["username"]},
+        {"_id": 0, "video_fid": 1, "original_filename": 1, "status": 1, "mp3_fid": 1},
+    ))
+    if not docs:
+        return jsonify({"error": "batch not found"}), 404
+
+    total = len(docs)
+    ready = sum(1 for d in docs if d.get("status") == "ready")
+    failed = sum(1 for d in docs if d.get("status") == "failed")
+    return jsonify({
+        "batch_id": batch_id,
+        "total": total,
+        "ready": ready,
+        "failed": failed,
+        "in_progress": total - ready - failed,
+        "complete": (ready + failed) == total,
+        "files": docs,
+    }), 200
 
 
 @server.route("/status/<video_fid>", methods=["GET"])
