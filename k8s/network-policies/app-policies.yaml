@@ -44,6 +44,15 @@ spec:
       ports:
         - protocol: TCP
           port: 5672
+    # A10 (Sprint 3) — flask-limiter shared store. Without this egress the limiter
+    # silently falls back to in-memory (per-pod, lost on restart).
+    - to:
+        - podSelector:
+            matchLabels:
+              app: redis
+      ports:
+        - protocol: TCP
+          port: 6379
 ---
 # AUTH — ingress from gateway on 5000; egress to PostgreSQL.
 apiVersion: networking.k8s.io/v1

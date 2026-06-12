@@ -38,23 +38,23 @@ labels:
 
 images:
   - name: johnbaabalola/auth-service
-    newTag: 65f2f57
+    newTag: 5888c30
   - name: johnbaabalola/gateway-service
-    newTag: 65f2f57
+    newTag: 5888c30
   - name: johnbaabalola/converter-service
-    newTag: 65f2f57
+    newTag: 5888c30
   - name: johnbaabalola/notification-service
-    newTag: 65f2f57
+    newTag: 5888c30
   # B2 gap-fix (disallow-latest-tag): pin the relay off :latest. 65f2f57 is the
   # tag actually built and pushed to the registry (the prior placeholder e4d2669
   # was never built → ImagePullBackOff when Argo synced it). The REAL tag will be
   # bumped here by GitOps (B1) once John adds outbox-relay to the CI build matrix
   # (A1 CI diff) like the other services.
   - name: johnbaabalola/outbox-relay
-    newTag: 65f2f57
+    newTag: 5888c30
   - name: vidcast-frontend
     newName: 501562869470.dkr.ecr.eu-west-2.amazonaws.com/vidcast-frontend
-    newTag: 6eb217c
+    newTag: 5888c30
 
 # Dev runs one replica of each backend (frontend is already 1 in base).
 replicas:

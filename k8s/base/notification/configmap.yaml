@@ -29,7 +29,7 @@ data:
   MONGODB_URI: "mongodb://mongodb:27017/videos"
   # VIDCAST_URL: public web app URL used in notification emails (UX2/B3). Defaults
   # in code to a dev placeholder; set the real ALB hostname in the prod overlay.
-  VIDCAST_URL: "http://localhost:30006"
+  VIDCAST_URL: "https://vidcast.online"
   # VIDEO_QUEUE removed: the notification consumer only reads MP3_QUEUE
   # (consumer.py consumes os.environ.get("MP3_QUEUE")). The video queue is
   # consumed exclusively by the converter service, so this value was never read.
