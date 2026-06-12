@@ -25,15 +25,15 @@ export default function Dashboard() {
           <p className="text-gray-600 text-xs mt-1">Credentials: admin / vidcast-demo</p>
         </div>
         <div className="bg-indigo-950 border border-indigo-800 rounded-xl p-4">
-          <h3 className="text-purple-400 font-semibold mb-1">Access Alertmanager</h3>
-          <p className="text-gray-400 text-sm mb-2">View active alerts</p>
+          <h3 className="text-purple-400 font-semibold mb-1">Active Alerts</h3>
+          <p className="text-gray-400 text-sm mb-2">Firing + pending alert rules</p>
           <a
-            href={GRAFANA_URL.replace('30007', '30008')}
+            href={`${GRAFANA_URL}/alerting/list`}
             target="_blank"
             rel="noopener noreferrer"
             className="text-purple-400 underline text-sm hover:text-purple-300"
           >
-            Open Alertmanager
+            Open Alerting
           </a>
         </div>
       </div>

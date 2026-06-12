@@ -1,0 +1,40 @@
+# Grafana on its own subdomain (grafana.vidcast.online), sharing the single
+# "vidcast" ALB with the app + Kubecost. The *.vidcast.online ACM cert covers it,
+# so the ALB terminates TLS and the in-app Dashboard page can embed Grafana over
+# HTTPS (an http:// NodePort iframe is blocked as mixed content on the HTTPS site).
+#
+# Grafana embedding is enabled in monitoring/values.yaml (allow_embedding,
+# cookie_samesite=none, anonymous Viewer, root_url=https://grafana.vidcast.online).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: grafana
+  namespace: monitoring
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80,"HTTPS":443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:eu-west-2:501562869470:certificate/eaf96a23-d7c2-4386-8f86-95f120861a20"
+    # Same group as the app + kubecost so all three share one ALB.
+    alb.ingress.kubernetes.io/group.name: vidcast
+    alb.ingress.kubernetes.io/group.order: "20"
+    # Grafana's "/" 302-redirects; use its dedicated health endpoint (200) instead.
+    alb.ingress.kubernetes.io/healthcheck-path: /api/health
+spec:
+  ingressClassName: alb
+  rules:
+    - host: grafana.vidcast.online
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: monitoring-grafana
+                port:
+                  number: 80
+  tls:
+    - hosts:
+        - grafana.vidcast.online
+      secretName: vidcast-tls

@@ -16,7 +16,11 @@ grafana:
       searchNamespace: monitoring
   grafana.ini:
     server:
-      root_url: "%(protocol)s://%(domain)s:30007"
+      # Served via the ALB at grafana.vidcast.online (HTTPS). A correct absolute
+      # root_url keeps Grafana's redirects/asset URLs on the public hostname so the
+      # in-app iframe (and direct access) work; the old :30007 NodePort value broke
+      # both once the app moved behind HTTPS.
+      root_url: "https://grafana.vidcast.online"
     # Allow the frontend Dashboard page to embed Grafana panels in an <iframe>
     # (Grafana ships with allow_embedding=false + X-Frame-Options:deny, which the
     # browser would otherwise block). Anonymous Viewer lets the iframe render the
